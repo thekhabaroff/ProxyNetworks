@@ -145,15 +145,23 @@ textarea {
 .editor {
   display: grid;
   gap: 18px;
+  align-content: start;
+  justify-items: stretch;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 12%),
     var(--bg);
 }
 
+.editor-header,
+.form {
+  width: 100%;
+  max-width: 640px;
+}
+
 .form {
   display: grid;
   gap: 16px;
-  max-width: 1040px;
+  align-content: start;
 }
 
 .row {
