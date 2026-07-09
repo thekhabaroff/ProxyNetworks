@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Настройки — Proxy Networks</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="window-header" aria-hidden="true">
+          <span class="traffic-light red"></span>
+          <span class="traffic-light yellow"></span>
+          <span class="traffic-light green"></span>
+        </div>
+        <div class="sidebar-header">
+          <h1>Профили</h1>
+          <button id="newProfileButton" type="button">Новый профиль</button>
+        </div>
+        <div id="profilesList" class="profiles-list"></div>
+      </aside>
+
+      <section class="editor">
+        <header class="editor-header">
+          <div>
+            <h2 id="formTitle">Новый профиль</h2>
+            <p>Настройте параметры прокси и сохраните профиль.</p>
+          </div>
+          <div class="actions">
+            <button id="activateButton" type="button">Сделать активным</button>
+            <button id="deleteButton" type="button" class="danger">Удалить</button>
+          </div>
+        </header>
+
+        <form id="profileForm" class="form">
+          <input type="hidden" id="profileId" />
+
+          <label class="field">
+            <span>Название</span>
+            <input id="name" type="text" />
+          </label>
+
+          <div class="row">
+            <label class="field">
+              <span>Режим</span>
+              <select id="mode">
+                <option value="direct">direct</option>
+                <option value="auto_detect">auto_detect</option>
+                <option value="system">system</option>
+                <option value="fixed_servers">fixed_servers</option>
+                <option value="pac_script">pac_script</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Область</span>
+              <label class="checkbox">
+                <input id="incognito" type="checkbox" />
+                <span>Только инкогнито</span>
+              </label>
+            </label>
+          </div>
+
+          <section id="fixedServersSection" class="panel">
+            <h3>Fixed servers</h3>
+            <div class="row">
+              <label class="field">
+                <span>Схема</span>
+                <select id="scheme">
+                  <option value="http">http</option>
+                  <option value="https">https</option>
+                  <option value="socks4">socks4</option>
+                  <option value="socks5">socks5</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Порт</span>
+                <input id="port" type="number" min="1" max="65535" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Хост</span>
+              <input id="host" type="text" />
+            </label>
+            <label class="checkbox">
+              <input id="useAdvanced" type="checkbox" />
+              <span>Использовать раздельные прокси по протоколам</span>
+            </label>
+
+            <div id="advancedSection" class="advanced">
+              <label class="field">
+                <span>HTTP прокси</span>
+                <div class="row">
+                  <select id="httpScheme">
+                    <option value="http">http</option>
+                    <option value="https">https</option>
+                    <option value="socks4">socks4</option>
+                    <option value="socks5">socks5</option>
+                  </select>
+                  <input id="httpHost" type="text" placeholder="Хост" />
+                  <input id="httpPort" type="number" min="1" max="65535" placeholder="Порт" />
+                </div>
+              </label>
+
+              <label class="field">
+                <span>HTTPS прокси</span>
+                <div class="row">
+                  <select id="httpsScheme">
+                    <option value="http">http</option>
+                    <option value="https">https</option>
+                    <option value="socks4">socks4</option>
+                    <option value="socks5">socks5</option>
+                  </select>
+                  <input id="httpsHost" type="text" placeholder="Хост" />
+                  <input id="httpsPort" type="number" min="1" max="65535" placeholder="Порт" />
+                </div>
+              </label>
+
+              <label class="field">
+                <span>SOCKS</span>
+                <div class="row">
+                  <select id="socksScheme">
+                    <option value="socks4">socks4</option>
+                    <option value="socks5">socks5</option>
+                  </select>
+                  <input id="socksHost" type="text" placeholder="Хост" />
+                  <input id="socksPort" type="number" min="1" max="65535" placeholder="Порт" />
+                </div>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Исключения, по одному на строку</span>
+              <textarea id="bypassList" rows="4"></textarea>
+            </label>
+          </section>
+
+          <section id="pacSection" class="panel hidden">
+            <h3>PAC-скрипт</h3>
+            <p>Пример fallback: <code>return "DIRECT";</code></p>
+            <label class="field">
+              <span>Содержимое PAC</span>
+              <textarea id="pacScript" rows="10"></textarea>
+            </label>
+          </section>
+
+          <section class="panel">
+            <h3>Авторизация</h3>
+            <div class="row">
+              <label class="field">
+                <span>Логин</span>
+                <input id="username" type="text" />
+              </label>
+              <label class="field">
+                <span>Пароль</span>
+                <input id="password" type="password" />
+              </label>
+            </div>
+          </section>
+
+          <div class="footer">
+            <div id="formError" class="error hidden"></div>
+            <button id="saveButton" type="submit" class="primary">Сохранить</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

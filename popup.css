@@ -1,0 +1,314 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #1e1e1e;
+  --panel: #2c2c2e;
+  --surface: #232325;
+  --field: #3a3a3c;
+  --separator: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.55);
+  --accent: #0a84ff;
+  --success: #30d158;
+  --danger: #ff453a;
+  --warning-bg: rgba(255, 214, 10, 0.14);
+  --warning-border: rgba(255, 214, 10, 0.28);
+  --warning-text: #ffd60a;
+}
+
+body {
+  margin: 0;
+  width: 320px;
+  min-height: 100vh;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.045), transparent 42%),
+    var(--bg);
+  letter-spacing: -0.01em;
+}
+
+.popup {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px 0;
+}
+
+.title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.traffic-lights {
+  display: inline-flex;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.traffic-light {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.traffic-light.red { background: #ff5f57; }
+.traffic-light.yellow { background: #febc2e; }
+.traffic-light.green { background: #28c840; }
+
+.header h1 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%), var(--panel);
+  border: 1px solid var(--separator);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.field,
+.toggle {
+  display: grid;
+  gap: 6px;
+}
+
+select,
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+select,
+button,
+textarea,
+input[type='text'],
+input[type='number'],
+input[type='password'] {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: var(--field);
+  color: var(--text);
+  border-radius: 8px;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+select,
+button {
+  min-height: 30px;
+  padding: 7px 10px;
+}
+
+button {
+  cursor: pointer;
+}
+
+.card button,
+.link-button {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.card button {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+}
+
+.card button:hover,
+.link-button:hover {
+  filter: brightness(1.06);
+}
+
+.card button:active,
+.link-button:active {
+  transform: translateY(1px);
+}
+
+.card button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.link-button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.28);
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  padding: 0;
+  min-height: 0;
+  box-shadow: none;
+}
+
+.status,
+.ip {
+  color: var(--muted);
+}
+
+.toggle {
+  position: relative;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 24px;
+  padding-left: 54px;
+  column-gap: 0;
+  cursor: pointer;
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.toggle::before,
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.toggle::before {
+  left: 0;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toggle::after {
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.toggle:has(input:checked)::before {
+  background: var(--success);
+  border-color: rgba(48, 209, 88, 0.6);
+}
+
+.toggle:has(input:checked)::after {
+  transform: translate(16px, -50%);
+}
+
+.toggle:has(input:focus-visible)::before {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.26);
+}
+
+.toggle input + span {
+  padding-top: 1px;
+}
+
+.toggle input:checked + span {
+  color: var(--text);
+}
+
+select {
+  padding-right: 30px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.62) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.62) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field select,
+.field input {
+  min-height: 32px;
+}
+
+.field > span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.field select,
+.field input,
+.field textarea {
+  width: 100%;
+}
+
+.field textarea {
+  min-height: 74px;
+  padding: 10px 11px;
+  resize: vertical;
+}
+
+.field input {
+  padding: 8px 10px;
+}
+
+.card label {
+  user-select: none;
+}
+
+.card select,
+.card input,
+.card textarea {
+  background-color: var(--field);
+}
+
+.banner {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: #ffe37a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.hidden {
+  display: none;
+}
+
+::selection {
+  background: rgba(10, 132, 255, 0.38);
+}
