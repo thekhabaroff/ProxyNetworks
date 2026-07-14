@@ -176,6 +176,16 @@ textarea:focus-visible,
   color: var(--muted);
 }
 
+.tips {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--warning-text);
+}
+
+.hidden {
+  display: none;
+}
+
 .toggle {
   position: relative;
   grid-template-columns: 1fr;

@@ -10,6 +10,29 @@ import {
 } from './storage.js';
 
 const attemptedAuthRequests = new Set();
+const authCleanupTimers = new Map();
+const AUTH_REQUEST_TTL_MS = 120000;
+
+function clearAuthAttempt(requestId) {
+  if (!requestId) {
+    return;
+  }
+
+  attemptedAuthRequests.delete(requestId);
+  const timerId = authCleanupTimers.get(requestId);
+  if (timerId) {
+    clearTimeout(timerId);
+    authCleanupTimers.delete(requestId);
+  }
+}
+
+function rememberAuthAttempt(requestId) {
+  attemptedAuthRequests.add(requestId);
+  const timerId = setTimeout(() => {
+    clearAuthAttempt(requestId);
+  }, AUTH_REQUEST_TTL_MS);
+  authCleanupTimers.set(requestId, timerId);
+}
 
 function proxySet(value, scope) {
   return new Promise((resolve, reject) => {
@@ -42,11 +65,29 @@ function endpointToProxyServer(endpoint) {
     return null;
   }
 
+  const port = Number(endpoint.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return null;
+  }
+
   return {
     scheme: endpoint.scheme,
     host: endpoint.host,
-    port: Number(endpoint.port),
+    port,
   };
+}
+
+function extensionIsAllowedIncognitoAccess() {
+  return new Promise((resolve) => {
+    if (!chrome.extension?.isAllowedIncognitoAccess) {
+      resolve(false);
+      return;
+    }
+
+    chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+      resolve(Boolean(isAllowed));
+    });
+  });
 }
 
 export function buildProxyConfig(profile) {
@@ -90,14 +131,15 @@ export function buildProxyConfig(profile) {
       };
     }
 
+    const singleProxy = endpointToProxyServer(profile);
+    if (!singleProxy) {
+      return { mode: 'direct' };
+    }
+
     return {
       mode: 'fixed_servers',
       rules: {
-        singleProxy: {
-          scheme: profile.scheme,
-          host: profile.host,
-          port: Number(profile.port),
-        },
+        singleProxy,
         bypassList: Array.isArray(profile.bypassList) ? profile.bypassList : [],
       },
     };
@@ -107,6 +149,10 @@ export function buildProxyConfig(profile) {
 }
 
 async function applyProfile(profile) {
+  if (profile.incognito && !(await extensionIsAllowedIncognitoAccess())) {
+    throw new Error('Для профиля инкогнито разрешите расширению доступ в инкогнито в chrome://extensions');
+  }
+
   const config = buildProxyConfig(profile);
   const scope = profile.incognito ? 'incognito_session_only' : 'regular';
   await proxySet(config, scope);
@@ -168,7 +214,7 @@ chrome.webRequest.onAuthRequired.addListener(
       return;
     }
 
-    attemptedAuthRequests.add(details.requestId);
+    rememberAuthAttempt(details.requestId);
 
     (async () => {
       const activeProfileId = await getActiveProfileId();
@@ -188,6 +234,16 @@ chrome.webRequest.onAuthRequired.addListener(
   },
   { urls: ['<all_urls>'] },
   ['asyncBlocking']
+);
+
+chrome.webRequest.onCompleted.addListener(
+  (details) => clearAuthAttempt(details.requestId),
+  { urls: ['<all_urls>'] }
+);
+
+chrome.webRequest.onErrorOccurred.addListener(
+  (details) => clearAuthAttempt(details.requestId),
+  { urls: ['<all_urls>'] }
 );
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -262,11 +318,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const data = await response.json();
         await setLastError(null);
-        sendResponse({ ok: true, ip: data.ip ?? null });
+        const status = await getStatus();
+        sendResponse({
+          ok: true,
+          ip: data.ip ?? null,
+          status,
+          tips: [],
+        });
       } catch (error) {
         const messageText = error instanceof Error ? error.message : String(error);
         await setLastError(messageText);
-        sendResponse({ ok: false, error: messageText });
+        sendResponse({
+          ok: false,
+          error: messageText,
+          tips: [
+            'Проверьте хост и порт прокси.',
+            'Проверьте логин и пароль, если прокси требует авторизацию.',
+            'Откройте chrome://net-internals/#proxy для низкоуровневой диагностики Chrome.',
+          ],
+        });
       }
       return;
     }

@@ -18,6 +18,11 @@
           <h1>Профили</h1>
           <button id="newProfileButton" type="button">Новый профиль</button>
         </div>
+        <div class="import-export">
+          <button id="exportProfilesButton" type="button">Экспорт</button>
+          <button id="importProfilesButton" type="button">Импорт</button>
+          <input id="importProfilesInput" class="hidden" type="file" accept="application/json" />
+        </div>
         <div id="profilesList" class="profiles-list"></div>
       </aside>
 
@@ -59,6 +64,7 @@
                 <input id="incognito" type="checkbox" />
                 <span>Только инкогнито</span>
               </label>
+              <small class="hint">Для этого режима разрешите расширению доступ в инкогнито в chrome://extensions.</small>
             </label>
           </div>
 
@@ -157,10 +163,17 @@
                 <input id="password" type="password" />
               </label>
             </div>
+            <p class="hint">Пароль шифруется локально, но ключ хранится рядом в хранилище расширения. Это защита от случайного просмотра, а не от полного доступа к устройству.</p>
+            <div class="actions inline-actions">
+              <button id="togglePasswordButton" type="button">Показать пароль</button>
+              <button id="clearPasswordButton" type="button">Очистить пароль</button>
+            </div>
           </section>
 
           <div class="footer">
             <div id="formError" class="error hidden"></div>
+            <div id="formSuccess" class="success hidden"></div>
+            <button id="testProfileButton" type="button">Проверить профиль</button>
             <button id="saveButton" type="submit" class="primary">Сохранить</button>
           </div>
         </form>

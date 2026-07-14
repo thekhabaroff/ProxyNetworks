@@ -13,6 +13,7 @@ const errorBanner = document.getElementById('errorBanner');
 const toggleLabel = document.getElementById('toggleLabel');
 const refreshIpButton = document.getElementById('refreshIpButton');
 const settingsButton = document.getElementById('settingsButton');
+const tipsList = document.getElementById('tipsList');
 
 let profilesCache = [];
 let currentEnabled = false;
@@ -77,17 +78,36 @@ async function loadProfiles() {
 
 async function refreshIp() {
   ipLine.textContent = 'Текущий IP: ...';
+  tipsList.innerHTML = '';
+  tipsList.classList.add('hidden');
   try {
-    const response = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    const response = await sendMessage({ action: 'checkProxy' });
+    if (!response?.ok) {
+      ipLine.textContent = `Текущий IP: ошибка (${response?.error ?? 'Не удалось проверить IP'})`;
+      renderTips(response?.tips);
+      return;
     }
-    const data = await response.json();
-    ipLine.textContent = `Текущий IP: ${data.ip ?? 'неизвестен'}`;
+    ipLine.textContent = `Текущий IP: ${response.ip ?? 'неизвестен'}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ipLine.textContent = `Текущий IP: ошибка (${message})`;
+    renderTips();
   }
+}
+
+function renderTips(items = [
+  'Проверьте хост и порт прокси.',
+  'Проверьте логин и пароль, если прокси требует авторизацию.',
+  'Откройте chrome://net-internals/#proxy для диагностики Chrome.',
+]) {
+  const tips = Array.isArray(items) ? items : [];
+  tipsList.innerHTML = '';
+  for (const tip of tips) {
+    const item = document.createElement('li');
+    item.textContent = tip;
+    tipsList.append(item);
+  }
+  tipsList.classList.toggle('hidden', tips.length === 0);
 }
 
 async function updateFromBackground() {

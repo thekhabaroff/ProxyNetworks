@@ -36,8 +36,18 @@ const fixedServersSection = document.getElementById('fixedServersSection');
 const advancedSection = document.getElementById('advancedSection');
 const pacSection = document.getElementById('pacSection');
 const formError = document.getElementById('formError');
+const formSuccess = document.getElementById('formSuccess');
 const deleteButton = document.getElementById('deleteButton');
 const activateButton = document.getElementById('activateButton');
+const testProfileButton = document.getElementById('testProfileButton');
+const exportProfilesButton = document.getElementById('exportProfilesButton');
+const importProfilesButton = document.getElementById('importProfilesButton');
+const importProfilesInput = document.getElementById('importProfilesInput');
+const togglePasswordButton = document.getElementById('togglePasswordButton');
+const clearPasswordButton = document.getElementById('clearPasswordButton');
+
+const ALLOWED_MODES = ['direct', 'auto_detect', 'system', 'fixed_servers', 'pac_script'];
+const ALLOWED_SCHEMES = ['http', 'https', 'socks4', 'socks5'];
 
 let profiles = [];
 let selectedProfileId = null;
@@ -66,11 +76,22 @@ function showError(message) {
   formError.classList.remove('hidden');
 }
 
+function showSuccess(message) {
+  if (!message) {
+    formSuccess.classList.add('hidden');
+    formSuccess.textContent = '';
+    return;
+  }
+
+  formSuccess.textContent = message;
+  formSuccess.classList.remove('hidden');
+}
+
 function parseBypassList(text) {
-  return text
+  return [...new Set(text
     .split('\n')
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean))];
 }
 
 function formatBypassList(items) {
@@ -88,6 +109,46 @@ function endpointFromInputs(schemeInputEl, hostInputEl, portInputEl) {
     host,
     port,
   };
+}
+
+function parseProxyUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed.includes('://')) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return {
+      scheme: url.protocol.replace(':', ''),
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 0,
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function normalizeProxyUrlInput(profile) {
+  const parsed = parseProxyUrl(profile.host);
+  if (!parsed) {
+    return profile;
+  }
+
+  return {
+    ...profile,
+    scheme: parsed.scheme || profile.scheme,
+    host: parsed.host,
+    port: parsed.port || profile.port,
+  };
+}
+
+function isValidHost(host) {
+  return Boolean(host) && !/\s|\/|:\/\//.test(host);
+}
+
+function isValidPort(port) {
+  return Number.isInteger(Number(port)) && Number(port) >= 1 && Number(port) <= 65535;
 }
 
 function setFieldVisibility() {
@@ -135,6 +196,8 @@ function fillForm(profile) {
   pacScriptInput.value = profile?.pacScript ?? '';
   usernameInput.value = profile?.username ?? '';
   passwordInput.value = profile?.password ?? '';
+  passwordInput.type = 'password';
+  togglePasswordButton.textContent = 'Показать пароль';
   incognitoInput.checked = Boolean(profile?.incognito);
   formTitle.textContent = profile?.id ? `Профиль: ${profile.name || profile.id}` : 'Новый профиль';
   setFieldVisibility();
@@ -148,6 +211,7 @@ async function loadProfile(id) {
   renderProfileList();
   fillForm(profile);
   showError('');
+  showSuccess('');
 }
 
 async function loadProfiles() {
@@ -165,11 +229,18 @@ function validateProfile(data) {
     return 'Введите название профиля.';
   }
 
+  if (!ALLOWED_MODES.includes(data.mode)) {
+    return 'Выбран неизвестный режим прокси.';
+  }
+
   if (data.mode === 'fixed_servers' && !data.useAdvanced) {
-    if (!data.host.trim()) {
-      return 'Укажите хост прокси.';
+    if (!ALLOWED_SCHEMES.includes(data.scheme)) {
+      return 'Выбрана неизвестная схема прокси.';
     }
-    if (!data.port || data.port < 1 || data.port > 65535) {
+    if (!isValidHost(data.host)) {
+      return 'Укажите корректный хост прокси без http://, путей и пробелов.';
+    }
+    if (!isValidPort(data.port)) {
       return 'Порт должен быть числом от 1 до 65535.';
     }
   }
@@ -179,11 +250,18 @@ function validateProfile(data) {
   }
 
   const endpoints = [data.proxyForHttp, data.proxyForHttps, data.socks].filter(Boolean);
+  if (data.mode === 'fixed_servers' && data.useAdvanced && endpoints.length === 0) {
+    return 'Заполните хотя бы один прокси-эндпоинт в расширенном режиме.';
+  }
+
   for (const endpoint of endpoints) {
-    if (!endpoint.host.trim()) {
-      return 'Укажите хост для всех заполненных прокси-эндпоинтов.';
+    if (!ALLOWED_SCHEMES.includes(endpoint.scheme)) {
+      return 'Выбрана неизвестная схема прокси-эндпоинта.';
     }
-    if (!endpoint.port || endpoint.port < 1 || endpoint.port > 65535) {
+    if (!isValidHost(endpoint.host)) {
+      return 'Укажите корректный хост для всех заполненных прокси-эндпоинтов без http://, путей и пробелов.';
+    }
+    if (!isValidPort(endpoint.port)) {
       return 'Порт должен быть числом от 1 до 65535.';
     }
   }
@@ -193,7 +271,7 @@ function validateProfile(data) {
 
 function collectProfile() {
   const useAdvanced = useAdvancedInput.checked;
-  const profile = {
+  let profile = {
     id: profileIdInput.value || undefined,
     name: nameInput.value.trim(),
     mode: modeInput.value,
@@ -214,6 +292,8 @@ function collectProfile() {
   if (Number.isNaN(profile.port)) {
     profile.port = 0;
   }
+
+  profile = normalizeProxyUrlInput(profile);
   return profile;
 }
 
@@ -231,6 +311,7 @@ profileForm.addEventListener('submit', async (event) => {
   const profile = collectProfile();
   const validationError = validateProfile(profile);
   if (validationError) {
+    showSuccess('');
     showError(validationError);
     return;
   }
@@ -238,6 +319,7 @@ profileForm.addEventListener('submit', async (event) => {
   showError('');
   const savedProfile = await saveProfile(profile);
   await refreshAfterSave(savedProfile);
+  showSuccess('Профиль сохранён.');
 });
 
 newProfileButton.addEventListener('click', () => {
@@ -245,6 +327,7 @@ newProfileButton.addEventListener('click', () => {
   renderProfileList();
   fillForm(null);
   showError('');
+  showSuccess('');
 });
 
 deleteButton.addEventListener('click', async () => {
@@ -253,8 +336,13 @@ deleteButton.addEventListener('click', async () => {
     return;
   }
 
+  if (!confirm('Удалить этот профиль?')) {
+    return;
+  }
+
   await deleteProfile(id);
   await loadProfiles();
+  showSuccess('Профиль удалён.');
 });
 
 activateButton.addEventListener('click', async () => {
@@ -266,6 +354,91 @@ activateButton.addEventListener('click', async () => {
   await setActiveProfileId(id);
   await sendMessage({ action: 'applyProfile', profileId: id });
   await loadProfiles();
+  showSuccess('Профиль сделан активным.');
+});
+
+testProfileButton.addEventListener('click', async () => {
+  showError('');
+  showSuccess('Проверяю прокси...');
+  const response = await sendMessage({ action: 'checkProxy' });
+  if (response?.ok) {
+    showSuccess(`Прокси отвечает. Текущий IP: ${response.ip ?? 'неизвестен'}.`);
+    return;
+  }
+
+  showSuccess('');
+  showError(`Проверка не прошла: ${response?.error ?? 'неизвестная ошибка'}`);
+});
+
+exportProfilesButton.addEventListener('click', async () => {
+  const includePasswords = confirm('Экспортировать профили вместе с паролями? Нажмите “Отмена”, чтобы экспортировать без паролей.');
+  const exportedProfiles = (await getProfiles()).map((profile) => ({
+    ...profile,
+    password: includePasswords ? profile.password : '',
+  }));
+  const blob = new Blob([JSON.stringify({ version: 1, profiles: exportedProfiles }, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'proxy-networks-profiles.json';
+  link.click();
+  URL.revokeObjectURL(url);
+  showSuccess(includePasswords ? 'Профили экспортированы с паролями.' : 'Профили экспортированы без паролей.');
+});
+
+importProfilesButton.addEventListener('click', () => {
+  importProfilesInput.click();
+});
+
+importProfilesInput.addEventListener('change', async () => {
+  const file = importProfilesInput.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await file.text());
+    const importedProfiles = Array.isArray(payload?.profiles) ? payload.profiles : null;
+    if (!importedProfiles) {
+      throw new Error('Файл должен содержать массив profiles.');
+    }
+
+    for (const profile of importedProfiles) {
+      const preparedProfile = {
+        ...profile,
+        id: undefined,
+        name: profile.name ? `${profile.name} (import)` : 'Imported profile',
+      };
+      const validationError = validateProfile(preparedProfile);
+      if (validationError) {
+        throw new Error(validationError);
+      }
+      await saveProfile(preparedProfile);
+    }
+
+    await loadProfiles();
+    showError('');
+    showSuccess(`Импортировано профилей: ${importedProfiles.length}.`);
+  } catch (error) {
+    showSuccess('');
+    showError(error instanceof Error ? error.message : String(error));
+  } finally {
+    importProfilesInput.value = '';
+  }
+});
+
+togglePasswordButton.addEventListener('click', () => {
+  const nextType = passwordInput.type === 'password' ? 'text' : 'password';
+  passwordInput.type = nextType;
+  togglePasswordButton.textContent = nextType === 'password' ? 'Показать пароль' : 'Скрыть пароль';
+});
+
+clearPasswordButton.addEventListener('click', () => {
+  passwordInput.value = '';
+  showError('');
+  showSuccess('Пароль очищен в форме. Нажмите “Сохранить”, чтобы применить изменение.');
 });
 
 modeInput.addEventListener('change', setFieldVisibility);

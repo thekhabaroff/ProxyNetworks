@@ -7,14 +7,28 @@ const STORAGE_KEYS = {
 };
 
 function storageGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (items) => resolve(items));
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(keys, (items) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve(items);
+    });
   });
 }
 
 function storageSet(items) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(items, () => resolve());
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(items, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve();
+    });
   });
 }
 
@@ -46,19 +60,67 @@ function getDefaults() {
   };
 }
 
+function normalizeMode(mode) {
+  const allowedModes = ['direct', 'auto_detect', 'system', 'fixed_servers', 'pac_script'];
+  return allowedModes.includes(mode) ? mode : 'direct';
+}
+
+function normalizeScheme(scheme, fallback = 'http') {
+  const allowedSchemes = ['http', 'https', 'socks4', 'socks5'];
+  return allowedSchemes.includes(scheme) ? scheme : fallback;
+}
+
+function normalizePort(port) {
+  const numericPort = Number(port);
+  if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
+    return 0;
+  }
+  return numericPort;
+}
+
+function normalizeHost(host) {
+  return typeof host === 'string' ? host.trim() : '';
+}
+
+function normalizeBypassList(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return [...new Set(items.map((item) => String(item).trim()).filter(Boolean))];
+}
+
+function normalizeEndpoint(endpoint, fallbackScheme = 'http') {
+  if (!endpoint || typeof endpoint !== 'object') {
+    return null;
+  }
+
+  const host = normalizeHost(endpoint.host);
+  const port = normalizePort(endpoint.port);
+  if (!host && !port) {
+    return null;
+  }
+
+  return {
+    scheme: normalizeScheme(endpoint.scheme, fallbackScheme),
+    host,
+    port,
+  };
+}
+
 function normalizeStoredProfile(profile) {
   return {
-    id: profile.id,
+    id: profile.id || '',
     name: profile.name ?? '',
-    mode: profile.mode ?? 'direct',
-    scheme: profile.scheme ?? 'http',
-    host: profile.host ?? '',
-    port: Number(profile.port) || 0,
+    mode: normalizeMode(profile.mode),
+    scheme: normalizeScheme(profile.scheme),
+    host: normalizeHost(profile.host),
+    port: normalizePort(profile.port),
     useAdvanced: Boolean(profile.useAdvanced),
-    proxyForHttp: profile.proxyForHttp ?? null,
-    proxyForHttps: profile.proxyForHttps ?? null,
-    socks: profile.socks ?? null,
-    bypassList: Array.isArray(profile.bypassList) ? profile.bypassList : [],
+    proxyForHttp: normalizeEndpoint(profile.proxyForHttp, 'http'),
+    proxyForHttps: normalizeEndpoint(profile.proxyForHttps, 'https'),
+    socks: normalizeEndpoint(profile.socks, 'socks5'),
+    bypassList: normalizeBypassList(profile.bypassList),
     pacScript: profile.pacScript ?? '',
     username: profile.username ?? '',
     password: profile.password ?? '',
@@ -127,7 +189,8 @@ export async function decryptPassword(b64) {
       ciphertext
     );
     return new TextDecoder().decode(decrypted);
-  } catch {
+  } catch (error) {
+    console.warn('Unable to decrypt stored proxy password:', error);
     return '';
   }
 }
