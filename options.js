@@ -13,13 +13,10 @@ const formTitle = document.getElementById('formTitle');
 const profileForm = document.getElementById('profileForm');
 const profileIdInput = document.getElementById('profileId');
 const nameInput = document.getElementById('name');
-const httpSchemeInput = document.getElementById('httpScheme');
 const httpHostInput = document.getElementById('httpHost');
 const httpPortInput = document.getElementById('httpPort');
-const httpsSchemeInput = document.getElementById('httpsScheme');
 const httpsHostInput = document.getElementById('httpsHost');
 const httpsPortInput = document.getElementById('httpsPort');
-const socksSchemeInput = document.getElementById('socksScheme');
 const socksHostInput = document.getElementById('socksHost');
 const socksPortInput = document.getElementById('socksPort');
 const bypassListInput = document.getElementById('bypassList');
@@ -79,7 +76,7 @@ function showSuccess(message) {
 
 function parseBypassList(text) {
   return [...new Set(text
-    .split('\n')
+    .split(/[\n,]+/)
     .map((line) => line.trim())
     .filter(Boolean))];
 }
@@ -107,11 +104,10 @@ function parseProxyUrl(value) {
   }
 }
 
-function endpointFromInputs(schemeInputEl, hostInputEl, portInputEl) {
+function endpointFromInputs(scheme, hostInputEl, portInputEl) {
   const parsed = parseProxyUrl(hostInputEl.value);
   const host = parsed?.host ?? hostInputEl.value.trim();
   const port = parsed?.port || Number(portInputEl.value);
-  const scheme = parsed?.scheme || schemeInputEl.value;
 
   if (!host && !portInputEl.value.trim()) {
     return null;
@@ -127,9 +123,9 @@ function endpointFromInputs(schemeInputEl, hostInputEl, portInputEl) {
 function endpointsFromLegacySingleProxy(profile) {
   if (profile.proxyForHttp || profile.proxyForHttps || profile.socks) {
     return {
-      proxyForHttp: profile.proxyForHttp ?? null,
-      proxyForHttps: profile.proxyForHttps ?? null,
-      socks: profile.socks ?? null,
+      proxyForHttp: profile.proxyForHttp ? { ...profile.proxyForHttp, scheme: 'http' } : null,
+      proxyForHttps: profile.proxyForHttps ? { ...profile.proxyForHttps, scheme: 'https' } : null,
+      socks: profile.socks ? { ...profile.socks, scheme: 'socks5' } : null,
     };
   }
 
@@ -149,7 +145,7 @@ function endpointsFromLegacySingleProxy(profile) {
     return {
       proxyForHttp: null,
       proxyForHttps: null,
-      socks: endpoint,
+      socks: { ...endpoint, scheme: 'socks5' },
     };
   }
 
@@ -191,13 +187,10 @@ function renderProfileList() {
 function fillForm(profile) {
   profileIdInput.value = profile?.id ?? '';
   nameInput.value = profile?.name ?? '';
-  httpSchemeInput.value = profile?.proxyForHttp?.scheme ?? 'http';
   httpHostInput.value = profile?.proxyForHttp?.host ?? '';
   httpPortInput.value = profile?.proxyForHttp?.port ? String(profile.proxyForHttp.port) : '';
-  httpsSchemeInput.value = profile?.proxyForHttps?.scheme ?? 'https';
   httpsHostInput.value = profile?.proxyForHttps?.host ?? '';
   httpsPortInput.value = profile?.proxyForHttps?.port ? String(profile.proxyForHttps.port) : '';
-  socksSchemeInput.value = profile?.socks?.scheme ?? 'socks5';
   socksHostInput.value = profile?.socks?.host ?? '';
   socksPortInput.value = profile?.socks?.port ? String(profile.socks.port) : '';
   bypassListInput.value = formatBypassList(profile?.bypassList ?? []);
@@ -251,6 +244,18 @@ function validateProfile(data) {
     }
   }
 
+  if (data.proxyForHttp && data.proxyForHttp.scheme !== 'http') {
+    return 'HTTP прокси должен использовать протокол http.';
+  }
+
+  if (data.proxyForHttps && data.proxyForHttps.scheme !== 'https') {
+    return 'HTTPS прокси должен использовать протокол https.';
+  }
+
+  if (data.socks && data.socks.scheme !== 'socks5') {
+    return 'SOCKS прокси должен использовать только socks5.';
+  }
+
   return '';
 }
 
@@ -263,9 +268,9 @@ function collectProfile() {
     host: '',
     port: 0,
     useAdvanced: true,
-    proxyForHttp: endpointFromInputs(httpSchemeInput, httpHostInput, httpPortInput),
-    proxyForHttps: endpointFromInputs(httpsSchemeInput, httpsHostInput, httpsPortInput),
-    socks: endpointFromInputs(socksSchemeInput, socksHostInput, socksPortInput),
+    proxyForHttp: endpointFromInputs('http', httpHostInput, httpPortInput),
+    proxyForHttps: endpointFromInputs('https', httpsHostInput, httpsPortInput),
+    socks: endpointFromInputs('socks5', socksHostInput, socksPortInput),
     bypassList: parseBypassList(bypassListInput.value),
     pacScript: '',
     username: usernameInput.value.trim(),

@@ -8,6 +8,7 @@ import {
 const enabledToggle = document.getElementById('enabledToggle');
 const profileSelect = document.getElementById('profileSelect');
 const statusLine = document.getElementById('statusLine');
+const profileEndpoints = document.getElementById('profileEndpoints');
 const ipLine = document.getElementById('ipLine');
 const errorBanner = document.getElementById('errorBanner');
 const toggleLabel = document.getElementById('toggleLabel');
@@ -50,6 +51,7 @@ async function loadStatus() {
     errorBanner.textContent = '';
     errorBanner.classList.add('hidden');
   }
+  renderProfileEndpoints();
 }
 
 function renderProfiles() {
@@ -70,10 +72,41 @@ function renderProfiles() {
   profileSelect.value = currentActiveProfileId ?? '';
 }
 
+function endpointText(label, endpoint) {
+  if (!endpoint?.host || !endpoint?.port) {
+    return null;
+  }
+
+  return `${label}: ${endpoint.host}:${endpoint.port}`;
+}
+
+function renderProfileEndpoints() {
+  const activeProfile = profilesCache.find((profile) => profile.id === currentActiveProfileId);
+  const endpointLines = [
+    endpointText('HTTP', activeProfile?.proxyForHttp),
+    endpointText('HTTPS', activeProfile?.proxyForHttps),
+    endpointText('SOCKS5', activeProfile?.socks),
+  ].filter(Boolean);
+
+  profileEndpoints.innerHTML = '';
+  if (endpointLines.length === 0) {
+    profileEndpoints.classList.add('hidden');
+    return;
+  }
+
+  for (const line of endpointLines) {
+    const item = document.createElement('div');
+    item.textContent = line;
+    profileEndpoints.append(item);
+  }
+  profileEndpoints.classList.remove('hidden');
+}
+
 async function loadProfiles() {
   profilesCache = await getProfiles();
   currentActiveProfileId = await getActiveProfileId();
   renderProfiles();
+  renderProfileEndpoints();
 }
 
 async function refreshIp() {
@@ -138,6 +171,8 @@ enabledToggle.addEventListener('change', async () => {
 profileSelect.addEventListener('change', async () => {
   const selectedProfileId = profileSelect.value || null;
   await setActiveProfileId(selectedProfileId);
+  currentActiveProfileId = selectedProfileId;
+  renderProfileEndpoints();
   if (currentEnabled && selectedProfileId) {
     await sendMessage({ action: 'applyProfile', profileId: selectedProfileId });
   }

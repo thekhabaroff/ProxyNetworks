@@ -176,6 +176,14 @@ textarea:focus-visible,
   color: var(--muted);
 }
 
+.endpoints {
+  display: grid;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  word-break: break-word;
+}
+
 .tips {
   margin: 0;
   padding-left: 18px;

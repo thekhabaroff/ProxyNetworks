@@ -82,6 +82,10 @@ function normalizeHost(host) {
 }
 
 function normalizeBypassList(items) {
+  if (typeof items === 'string') {
+    return [...new Set(items.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean))];
+  }
+
   if (!Array.isArray(items)) {
     return [];
   }
@@ -113,7 +117,11 @@ function buildAdvancedEndpoints(profile) {
   const socks = normalizeEndpoint(profile.socks, 'socks5');
 
   if (proxyForHttp || proxyForHttps || socks) {
-    return { proxyForHttp, proxyForHttps, socks };
+    return {
+      proxyForHttp: proxyForHttp ? { ...proxyForHttp, scheme: 'http' } : null,
+      proxyForHttps: proxyForHttps ? { ...proxyForHttps, scheme: 'https' } : null,
+      socks: socks ? { ...socks, scheme: 'socks5' } : null,
+    };
   }
 
   const host = normalizeHost(profile.host);
@@ -125,12 +133,12 @@ function buildAdvancedEndpoints(profile) {
   const scheme = normalizeScheme(profile.scheme);
   const endpoint = { scheme, host, port };
   if (scheme === 'socks4' || scheme === 'socks5') {
-    return { proxyForHttp: null, proxyForHttps: null, socks: endpoint };
+    return { proxyForHttp: null, proxyForHttps: null, socks: { ...endpoint, scheme: 'socks5' } };
   }
 
   return {
-    proxyForHttp: endpoint,
-    proxyForHttps: { ...endpoint, scheme: scheme === 'https' ? 'https' : 'http' },
+    proxyForHttp: { ...endpoint, scheme: 'http' },
+    proxyForHttps: { ...endpoint, scheme: 'https' },
     socks: null,
   };
 }

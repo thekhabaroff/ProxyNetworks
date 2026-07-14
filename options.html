@@ -47,18 +47,10 @@
           </label>
 
           <section id="fixedServersSection" class="panel">
-            <h3>Fixed servers</h3>
-            <p class="hint">Расширение всегда использует режим fixed_servers и раздельные прокси по протоколам.</p>
             <div id="advancedSection" class="advanced">
               <label class="field">
                 <span>HTTP прокси</span>
                 <div class="row">
-                  <select id="httpScheme">
-                    <option value="http">http</option>
-                    <option value="https">https</option>
-                    <option value="socks4">socks4</option>
-                    <option value="socks5">socks5</option>
-                  </select>
                   <input id="httpHost" type="text" placeholder="Хост" />
                   <input id="httpPort" type="number" min="1" max="65535" placeholder="Порт" />
                 </div>
@@ -67,24 +59,14 @@
               <label class="field">
                 <span>HTTPS прокси</span>
                 <div class="row">
-                  <select id="httpsScheme">
-                    <option value="http">http</option>
-                    <option value="https">https</option>
-                    <option value="socks4">socks4</option>
-                    <option value="socks5">socks5</option>
-                  </select>
                   <input id="httpsHost" type="text" placeholder="Хост" />
                   <input id="httpsPort" type="number" min="1" max="65535" placeholder="Порт" />
                 </div>
               </label>
 
               <label class="field">
-                <span>SOCKS</span>
+                <span>SOCKS5 прокси</span>
                 <div class="row">
-                  <select id="socksScheme">
-                    <option value="socks4">socks4</option>
-                    <option value="socks5">socks5</option>
-                  </select>
                   <input id="socksHost" type="text" placeholder="Хост" />
                   <input id="socksPort" type="number" min="1" max="65535" placeholder="Порт" />
                 </div>
@@ -92,7 +74,7 @@
             </div>
 
             <label class="field">
-              <span>Исключения, по одному на строку</span>
+              <span>Исключения, по одному на строку или через запятую</span>
               <textarea id="bypassList" rows="4"></textarea>
             </label>
           </section>
