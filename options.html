@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Настройки — Proxy Networks</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="window-header" aria-hidden="true">
+          <span class="traffic-light red"></span>
+          <span class="traffic-light yellow"></span>
+          <span class="traffic-light green"></span>
+        </div>
+        <div class="sidebar-header">
+          <h1>Профили</h1>
+          <button id="newProfileButton" type="button">Новый профиль</button>
+        </div>
+        <div class="import-export">
+          <button id="exportProfilesButton" type="button">Экспорт</button>
+          <button id="importProfilesButton" type="button">Импорт</button>
+          <input id="importProfilesInput" class="hidden" type="file" accept="application/json" />
+        </div>
+        <div id="profilesList" class="profiles-list"></div>
+      </aside>
+
+      <section class="editor">
+        <header class="editor-header">
+          <div>
+            <h2 id="formTitle">Новый профиль</h2>
+            <p>Настройте параметры прокси и сохраните профиль.</p>
+          </div>
+          <div class="actions">
+            <button id="deleteButton" type="button" class="danger">Удалить</button>
+          </div>
+        </header>
+
+        <form id="profileForm" class="form">
+          <input type="hidden" id="profileId" />
+
+          <label class="field">
+            <span>Название</span>
+            <input id="name" type="text" required autocomplete="off" />
+          </label>
+
+          <section class="panel">
+            <div class="advanced">
+              <div class="field">
+                <div class="field-header"><span>HTTP прокси <span class="proxy-status" data-protocol="http" aria-label="Статус HTTP прокси"></span></span><button class="check-proxy-button" data-protocol="http" type="button">Проверить</button></div>
+                <div class="row">
+                  <input id="httpHost" type="text" placeholder="Хост" aria-label="Хост HTTP прокси" autocomplete="off" spellcheck="false" />
+                  <input id="httpPort" type="number" min="1" max="65535" placeholder="Порт" aria-label="Порт HTTP прокси" />
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-header"><span>HTTPS прокси <span class="proxy-status" data-protocol="https" aria-label="Статус HTTPS прокси"></span></span><button class="check-proxy-button" data-protocol="https" type="button">Проверить</button></div>
+                <div class="row">
+                  <input id="httpsHost" type="text" placeholder="Хост" aria-label="Хост HTTPS прокси" autocomplete="off" spellcheck="false" />
+                  <input id="httpsPort" type="number" min="1" max="65535" placeholder="Порт" aria-label="Порт HTTPS прокси" />
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-header"><span>SOCKS5 прокси <span class="proxy-status" data-protocol="socks" aria-label="Статус SOCKS5 прокси"></span></span><button class="check-proxy-button" data-protocol="socks" type="button">Проверить</button></div>
+                <div class="row">
+                  <input id="socksHost" type="text" placeholder="Хост" aria-label="Хост SOCKS5 прокси" autocomplete="off" spellcheck="false" />
+                  <input id="socksPort" type="number" min="1" max="65535" placeholder="Порт" aria-label="Порт SOCKS5 прокси" />
+                </div>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>Исключения, по одному на строку или через запятую</span>
+              <textarea id="bypassList" rows="4"></textarea>
+            </label>
+          </section>
+
+          <section class="panel">
+            <h3>Авторизация</h3>
+            <div class="row">
+              <label class="field">
+                <span>Логин</span>
+                <input id="username" type="text" autocomplete="username" />
+              </label>
+              <label class="field">
+                <span>Пароль</span>
+                <input id="password" type="password" autocomplete="current-password" />
+              </label>
+            </div>
+            <p class="hint">Логин и пароль применяются к HTTP(S)-прокси. Chrome не поддерживает авторизацию SOCKS5: такой прокси будет работать только без логина и пароля. Пароль шифруется локально, но ключ хранится рядом в хранилище расширения.</p>
+            <div class="actions inline-actions">
+              <button id="togglePasswordButton" type="button">Показать пароль</button>
+              <button id="clearPasswordButton" type="button">Очистить пароль</button>
+            </div>
+          </section>
+
+          <div class="footer">
+            <div id="formError" class="error hidden"></div>
+            <div id="formSuccess" class="success hidden"></div>
+            <button id="saveButton" type="submit" class="primary">Сохранить</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

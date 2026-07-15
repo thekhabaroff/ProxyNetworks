@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Proxy Networks</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <div class="title-group">
+          <div class="traffic-lights" aria-hidden="true">
+            <span class="traffic-light red"></span>
+            <span class="traffic-light yellow"></span>
+            <span class="traffic-light green"></span>
+          </div>
+          <h1>Proxy Networks</h1>
+        </div>
+        <button id="settingsButton" class="settings-button" type="button" aria-label="Настройки" title="Настройки">⚙</button>
+      </header>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="enabledToggle" type="checkbox" />
+          <span id="toggleLabel">Прокси выключен</span>
+        </label>
+
+        <label class="field">
+          <span>Профиль</span>
+          <select id="profileSelect"></select>
+        </label>
+        <label id="protocolField" class="field">
+          <span>Протокол</span>
+          <select id="protocolSelect">
+            <option value="auto">Авто</option>
+            <option value="http">HTTP</option>
+            <option value="https">HTTPS</option>
+            <option value="socks">SOCKS5</option>
+          </select>
+        </label>
+
+        <div id="statusLine" class="status hidden"></div>
+        <div id="ipLine" class="ip">Текущий IP: —</div>
+        <ul id="tipsList" class="tips hidden"></ul>
+        <button id="refreshIpButton" type="button">Обновить IP</button>
+      </section>
+
+      <section id="errorBanner" class="banner hidden"></section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

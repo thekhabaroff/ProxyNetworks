@@ -1,0 +1,14 @@
+{
+  "name": "proxy-networks-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 extension for managing proxy profiles.",
+  "scripts": {
+    "check": "node --check background.js && node --check config.js && node --check options.js && node --check popup.js && node --check storage.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

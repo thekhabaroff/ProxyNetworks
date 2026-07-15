@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Proxy Networks",
+  "version": "1.0.0",
+  "description": "Расширение для управления прокси-профилями в Chrome.",
+  "permissions": [
+    "proxy",
+    "webRequest",
+    "webRequestAuthProvider",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Proxy Networks",
+    "default_icon": {
+      "16": "icons/globe-gray-16.png",
+      "48": "icons/globe-gray-48.png",
+      "128": "icons/globe-gray-128.png"
+    }
+  },
+  "options_page": "options.html",
+  "minimum_chrome_version": "108",
+  "icons": {
+    "16": "icons/logo-brand-16.png",
+    "48": "icons/logo-brand-48.png",
+    "128": "icons/logo-brand-128.png"
+  }
+}
