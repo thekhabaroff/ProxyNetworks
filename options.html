@@ -26,7 +26,6 @@
         <div id="profilesList" class="profiles-list"></div>
         <a class="sidebar-link" href="https://tg.cryptonetworks.online/connect" target="_blank" rel="noopener noreferrer">Бесплатный прокси для Telegram</a>
         <a class="sidebar-link" href="https://t.me/cryptonetworks_bot" target="_blank" rel="noopener noreferrer">Стабильный VPN</a>
-        </a>
       </aside>
 
       <section class="editor">
@@ -78,6 +77,14 @@
             <label class="field">
               <span>Исключения, по одному на строку или через запятую</span>
               <textarea id="bypassList" rows="4"></textarea>
+              <label class="checkbox-field">
+                <input id="bypassRussianResources" type="checkbox" />
+                <span>Исключить российские ресурсы</span>
+              </label>
+              <label class="checkbox-field">
+                <input id="bypassLocalNetworks" type="checkbox" />
+                <span>Исключить локальные сети</span>
+              </label>
             </label>
 
             <label class="field">
@@ -112,6 +119,7 @@
             <button id="saveButton" type="submit" class="primary">Сохранить</button>
           </div>
         </form>
+
       </section>
     </main>
     <script type="module" src="options.js"></script>

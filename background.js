@@ -1,5 +1,6 @@
 import {
   getActiveProfileId,
+  getContentBlockingSettings,
   getEnabled,
   getLastError,
   getProfile,
@@ -28,20 +29,84 @@ const attemptedAuthRequests = new Set();
 const authCleanupTimers = new Map();
 const AUTH_REQUEST_TTL_MS = 120000;
 const CHECK_TIMEOUT_MS = 15000;
+const STATIC_RULESET_IDS = Object.freeze({
+  tracking: ['trackers_rules'],
+});
 let endpointCheckInProgress = false;
 let proxyHealthCheckInProgress = false;
 let endpointTestAuth = null;
 let pendingProfileAuth = null;
 let ignoreProxyErrorsUntil = 0;
+let russianBypassListPromise = null;
+let localBypassListPromise = null;
+
+async function getRussianBypassList() {
+  if (!russianBypassListPromise) {
+    russianBypassListPromise = fetch(chrome.runtime.getURL('rules/ru.json'), { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Не удалось загрузить rules/ru.json (HTTP ${response.status}).`);
+        return response.json();
+      })
+      .then((rules) => [...new Set((Array.isArray(rules) ? rules : [])
+        .map((rule) => rule?.condition?.urlFilter)
+        .filter((filter) => typeof filter === 'string')
+        .map((filter) => filter.match(/^\|\|([^|^]+)\^$/)?.[1])
+        .filter(Boolean)
+        .flatMap((domain) => [domain, `*.${domain}`]))]);
+  }
+  return russianBypassListPromise;
+}
+
+async function getLocalBypassList() {
+  if (!localBypassListPromise) {
+    localBypassListPromise = fetch(chrome.runtime.getURL('rules/local.json'), { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Не удалось загрузить rules/local.json (HTTP ${response.status}).`);
+        return response.json();
+      })
+      .then((rules) => [...new Set((Array.isArray(rules) ? rules : [])
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim()))]);
+  }
+  return localBypassListPromise;
+}
 
 async function profileWithResolvedBypassList(profile) {
   if (!profile || !Array.isArray(profile.bypassList)) {
     return profile;
   }
+  const bypassList = await resolveGeositeBypassList(profile.bypassList);
+  if (profile.bypassRussianResources) {
+    bypassList.push(...await getRussianBypassList());
+  }
+  if (profile.bypassLocalNetworks) {
+    bypassList.push(...await getLocalBypassList());
+  }
   return {
     ...profile,
-    bypassList: await resolveGeositeBypassList(profile.bypassList),
+    bypassList: [...new Set(bypassList)],
   };
+}
+
+async function syncContentBlockingRules(profileOverride = null, profileEnabledOverride = null) {
+  // Remove old rules first so geosite sources cannot be blocked by a stale
+  // ruleset while the new lists are being resolved.
+  await updateBlockRules([]);
+  const activeProfileId = await getActiveProfileId();
+  const activeProfile = profileOverride || (activeProfileId ? await getProfile(activeProfileId) : null);
+  const settings = await getContentBlockingSettings();
+  const profileEnabled = profileEnabledOverride ?? await getEnabled();
+  const enabledRulesets = await chrome.declarativeNetRequest.getEnabledRulesets();
+  const desiredRulesets = Object.entries(STATIC_RULESET_IDS)
+    .filter(([setting]) => settings[setting])
+    .flatMap(([, rulesetIds]) => rulesetIds);
+  const desiredSet = new Set(desiredRulesets);
+  await chrome.declarativeNetRequest.updateEnabledRulesets({
+    enableRulesetIds: desiredRulesets.filter((id) => !enabledRulesets.includes(id)),
+    disableRulesetIds: Object.values(STATIC_RULESET_IDS).flat()
+      .filter((id) => enabledRulesets.includes(id) && !desiredSet.has(id)),
+  });
+  return updateBlockRules(profileEnabled ? activeProfile?.blockList ?? [] : [], settings);
 }
 
 function normalizeProxyHost(host) {
@@ -126,10 +191,6 @@ async function applyProfile(profile, protocol = 'auto') {
   if (!PROTOCOLS.includes(protocol)) {
     throw new Error('Неизвестный протокол прокси.');
   }
-  // Old block rules may block GitHub, which is also the geosite source.
-  if (await getEnabled()) {
-    await updateBlockRules([]);
-  }
   let resolvedProtocol = protocol;
   if (protocol !== 'auto') {
     const endpoint = protocol === 'http'
@@ -145,9 +206,6 @@ async function applyProfile(profile, protocol = 'auto') {
     throw new Error('В профиле не настроен ни один прокси.');
   }
   await proxySet(config, 'regular');
-  if (await getEnabled()) {
-    await updateBlockRules(profile.blockList);
-  }
   await setSelectedProtocol(resolvedProtocol);
   await setLastError(null);
   return config;
@@ -157,9 +215,9 @@ async function disableAll() {
   try {
     await proxySet({ mode: 'direct' }, 'regular');
   } finally {
-    await updateBlockRules([]);
     await setEnabled(false);
     await setLastError(null);
+    await syncContentBlockingRules();
   }
 }
 
@@ -177,6 +235,7 @@ async function enableActiveProfile(protocol = null) {
   const selectedProtocol = protocol ?? await getSelectedProtocol();
   pendingProfileAuth = authScopeForProfile(profile, selectedProtocol);
   try {
+    await syncContentBlockingRules(profile, true);
     await applyProfile(profile, selectedProtocol);
     await setEnabled(true);
   } finally {
@@ -390,7 +449,7 @@ async function restoreStoredState() {
     if (await getEnabled()) {
       await enableActiveProfile();
     } else {
-      await updateBlockRules([]);
+      await syncContentBlockingRules();
     }
   } catch (error) {
     try {
@@ -422,9 +481,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 
   const profiles = await getProfiles();
-  if (await getEnabled()) {
-    await updateBlockRules([]);
-  }
   const result = await refreshGeositeCaches(geositeNamesFromProfiles(profiles));
   if (result.failed.length) {
     console.warn('Unable to refresh geosite bases:', result.failed);
@@ -437,6 +493,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await setLastError(error instanceof Error ? error.message : String(error));
       await updateActionIcon();
     }
+  } else {
+    await syncContentBlockingRules();
   }
 });
 
@@ -464,11 +522,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const selectedProtocol = message.protocol ?? await getSelectedProtocol();
       pendingProfileAuth = authScopeForProfile(profile, selectedProtocol);
       try {
-        await updateBlockRules([]);
+        await syncContentBlockingRules(profile, true);
         await applyProfile(profile, selectedProtocol);
         await setActiveProfileId(targetProfileId);
         await setEnabled(true);
-        await updateBlockRules(profile.blockList);
       } finally {
         pendingProfileAuth = null;
       }
@@ -503,6 +560,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (enabled) {
         pendingProfileAuth = authScopeForProfile(profile, protocol);
         try {
+          await syncContentBlockingRules(profile);
           await applyProfile(profile, protocol);
           await setActiveProfileId(targetProfileId);
         } finally {
@@ -515,6 +573,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
       await setActiveProfileId(targetProfileId);
       await setSelectedProtocol(protocol);
+      await syncContentBlockingRules(profile);
       sendResponse({ ok: true, profile });
       return;
     }
@@ -525,15 +584,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     if (message.action === 'syncBlockRules') {
-      if (!await getEnabled()) {
-        await updateBlockRules([]);
-      } else {
-        await updateBlockRules([]);
-        const activeProfileId = await getActiveProfileId();
-        const activeProfile = activeProfileId ? await getProfile(activeProfileId) : null;
-        await updateBlockRules(activeProfile?.blockList ?? []);
-      }
-      sendResponse({ ok: true });
+      const count = await syncContentBlockingRules();
+      sendResponse({ ok: true, count });
       return;
     }
 

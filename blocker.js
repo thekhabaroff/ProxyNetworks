@@ -2,6 +2,9 @@ import { resolveGeositeBypassList } from './geosite.js';
 
 const BLOCK_RULE_ID_START = 1000000;
 const MAX_BLOCK_RULES = 30000;
+const BUILT_IN_BLOCK_LISTS = {
+  tracking: 'geosite:category-public-tracker',
+};
 
 function domainToAscii(entry) {
   if (typeof entry !== 'string') {
@@ -51,9 +54,15 @@ function buildBlockRules(entries) {
   }));
 }
 
-export async function updateBlockRules(blockList = []) {
-  const expandedList = await resolveGeositeBypassList(blockList);
+export async function updateBlockRules(blockList = [], settings = {}) {
+  const builtInList = [];
+  if (settings.tracking) builtInList.push(BUILT_IN_BLOCK_LISTS.tracking);
+  const expandedList = await resolveGeositeBypassList([...blockList, ...builtInList]);
   const rules = buildBlockRules(expandedList);
+  const allRules = rules.map((rule, index) => ({
+    ...rule,
+    id: BLOCK_RULE_ID_START + index,
+  }));
   const currentRules = await chrome.declarativeNetRequest.getDynamicRules();
   // This extension owns the whole dynamic ruleset. Remove every existing
   // dynamic rule so rules created by an older version cannot survive after
@@ -62,8 +71,8 @@ export async function updateBlockRules(blockList = []) {
 
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: managedRuleIds,
-    addRules: rules,
+    addRules: allRules,
   });
 
-  return rules.length;
+  return allRules.length;
 }

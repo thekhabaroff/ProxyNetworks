@@ -1,6 +1,8 @@
 import {
+  getContentBlockingSettings,
   getProfiles,
   getActiveProfileId,
+  setContentBlockingSettings,
 } from './storage.js';
 
 const enabledToggle = document.getElementById('enabledToggle');
@@ -15,6 +17,7 @@ const toggleLabel = document.getElementById('toggleLabel');
 const refreshIpButton = document.getElementById('refreshIpButton');
 const settingsButton = document.getElementById('settingsButton');
 const tipsList = document.getElementById('tipsList');
+const blockTrackingInput = document.getElementById('blockTracking');
 
 let profilesCache = [];
 let currentEnabled = false;
@@ -45,6 +48,8 @@ async function sendCommand(message) {
 
 async function loadStatus() {
   await sendMessage({ action: 'syncBlockRules' });
+  const blockingSettings = await getContentBlockingSettings();
+  blockTrackingInput.checked = blockingSettings.tracking;
   const response = await sendMessage({ action: 'getStatus' });
   currentEnabled = Boolean(response?.enabled);
   currentActiveProfileId = response?.activeProfileId ?? null;
@@ -73,6 +78,21 @@ async function loadStatus() {
   } else {
     errorBanner.textContent = '';
     errorBanner.classList.add('hidden');
+  }
+}
+
+async function saveContentBlockingSettings() {
+  blockTrackingInput.disabled = true;
+  try {
+    await setContentBlockingSettings({
+      tracking: blockTrackingInput.checked,
+    });
+    await sendCommand({ action: 'syncBlockRules' });
+    showPopupError('');
+  } catch (error) {
+    showPopupError(error instanceof Error ? error.message : String(error));
+  } finally {
+    blockTrackingInput.disabled = false;
   }
 }
 
@@ -139,8 +159,6 @@ async function refreshIp() {
   refreshIpButton.disabled = true;
   ipLine.classList.add('updating');
   pingLine.classList.add('updating');
-  tipsList.innerHTML = '';
-  tipsList.classList.add('hidden');
   try {
     const response = await sendMessage({ action: 'checkProxy' });
     if (!response?.ok) {
@@ -159,6 +177,7 @@ async function refreshIp() {
       ? `Пинг: ${response.ping} мс`
       : 'Пинг: —');
     showPopupError('');
+    renderTips([]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     updateLiveText(ipLine, `Текущий IP: ошибка (${message})`);
@@ -266,6 +285,7 @@ protocolSelect.addEventListener('change', async () => {
 });
 
 refreshIpButton.addEventListener('click', refreshIp);
+blockTrackingInput.addEventListener('change', saveContentBlockingSettings);
 
 settingsButton.addEventListener('click', async () => {
   try {

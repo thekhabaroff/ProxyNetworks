@@ -65,7 +65,8 @@ export function buildProxyConfig(profile) {
   if (httpsProxy) rules.proxyForHttps = httpsProxy;
   if (socksProxy) rules.fallbackProxy = socksProxy;
   if (Array.isArray(profile.bypassList) && profile.bypassList.length > 0) {
-    rules.bypassList = normalizeBypassListForChrome(profile.bypassList);
+    const bypassList = normalizeBypassListForChrome(profile.bypassList);
+    if (bypassList.length > 0) rules.bypassList = bypassList;
   }
 
   return httpProxy || httpsProxy || socksProxy
@@ -95,7 +96,7 @@ export function buildSelectedProxyConfig(profile, protocol = 'auto') {
     mode: 'fixed_servers',
     rules: {
       singleProxy: server,
-      bypassList: normalizeBypassListForChrome(profile.bypassList),
+      bypassList: normalizeBypassListForChrome(profile?.bypassList),
     },
   };
 }

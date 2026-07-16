@@ -81,7 +81,6 @@ geosite:google
 
 ```text
 ads.example.com
-geosite:category-ads-all
 geosite:magnit
 ```
 

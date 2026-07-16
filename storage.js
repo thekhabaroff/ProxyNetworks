@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   cryptoKey: 'cryptoKey',
   lastError: 'lastError',
   selectedProtocol: 'selectedProtocol',
+  contentBlocking: 'contentBlocking',
 };
 
 const PROTOCOLS = new Set(['auto', 'http', 'https', 'socks']);
@@ -61,6 +62,9 @@ function getDefaults() {
     [STORAGE_KEYS.cryptoKey]: null,
     [STORAGE_KEYS.lastError]: null,
     [STORAGE_KEYS.selectedProtocol]: 'auto',
+    [STORAGE_KEYS.contentBlocking]: {
+      tracking: false,
+    },
   };
 }
 
@@ -155,6 +159,8 @@ function normalizeStoredProfile(profile) {
     proxyForHttps: advancedEndpoints.proxyForHttps,
     socks: advancedEndpoints.socks,
     bypassList: normalizeBypassList(profile.bypassList),
+    bypassRussianResources: profile.bypassRussianResources === true,
+    bypassLocalNetworks: profile.bypassLocalNetworks === true,
     blockList: normalizeBypassList(profile.blockList),
     username: typeof profile.username === 'string' ? profile.username.trim() : '',
     password: typeof profile.password === 'string' ? profile.password : '',
@@ -329,6 +335,22 @@ export async function getSelectedProtocol() {
 export async function setSelectedProtocol(protocol) {
   await storageSet({
     [STORAGE_KEYS.selectedProtocol]: PROTOCOLS.has(protocol) ? protocol : 'auto',
+  });
+}
+
+export async function getContentBlockingSettings() {
+  const data = await storageGet([STORAGE_KEYS.contentBlocking]);
+  const settings = data[STORAGE_KEYS.contentBlocking];
+  return {
+    tracking: Boolean(settings?.tracking),
+  };
+}
+
+export async function setContentBlockingSettings(settings) {
+  await storageSet({
+    [STORAGE_KEYS.contentBlocking]: {
+      tracking: Boolean(settings?.tracking),
+    },
   });
 }
 

@@ -19,6 +19,8 @@ const httpsPortInput = document.getElementById('httpsPort');
 const socksHostInput = document.getElementById('socksHost');
 const socksPortInput = document.getElementById('socksPort');
 const bypassListInput = document.getElementById('bypassList');
+const bypassRussianResourcesInput = document.getElementById('bypassRussianResources');
+const bypassLocalNetworksInput = document.getElementById('bypassLocalNetworks');
 const blockListInput = document.getElementById('blockList');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
@@ -207,6 +209,8 @@ function fillForm(profile) {
   socksHostInput.value = profile?.socks?.host ?? '';
   socksPortInput.value = profile?.socks?.port ? String(profile.socks.port) : '';
   bypassListInput.value = formatBypassList(profile?.bypassList ?? []);
+  bypassRussianResourcesInput.checked = profile?.bypassRussianResources === true;
+  bypassLocalNetworksInput.checked = profile?.bypassLocalNetworks === true;
   blockListInput.value = formatBypassList(profile?.blockList ?? []);
   usernameInput.value = profile?.username ?? '';
   passwordInput.value = profile?.password ?? '';
@@ -283,6 +287,8 @@ function collectProfile() {
     proxyForHttps: endpointFromInputs('https', httpsHostInput, httpsPortInput),
     socks: endpointFromInputs('socks5', socksHostInput, socksPortInput),
     bypassList: parseBypassList(bypassListInput.value),
+    bypassRussianResources: bypassRussianResourcesInput.checked,
+    bypassLocalNetworks: bypassLocalNetworksInput.checked,
     blockList: parseBypassList(blockListInput.value),
     username: usernameInput.value.trim(),
     password: passwordInput.value,
@@ -296,6 +302,7 @@ async function refreshAfterSave(savedProfile) {
   if (enabled && savedProfile.id === (await getActiveProfileId())) {
     await sendCommand({ action: 'applyProfile', profileId: savedProfile.id });
   }
+  await sendCommand({ action: 'syncBlockRules' });
 }
 
 profileForm.addEventListener('submit', async (event) => {
@@ -421,6 +428,8 @@ exportProfilesButton.addEventListener('click', async () => {
       proxyForHttps: profile.proxyForHttps,
       socks: profile.socks,
       bypassList: profile.bypassList,
+      bypassRussianResources: profile.bypassRussianResources === true,
+      bypassLocalNetworks: profile.bypassLocalNetworks === true,
       blockList: profile.blockList,
       username: profile.username,
       password: includePasswords ? profile.password : '',

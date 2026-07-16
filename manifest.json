@@ -11,6 +11,15 @@
     "alarms",
     "declarativeNetRequest"
   ],
+    "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "trackers_rules",
+        "enabled": false,
+        "path": "rules/trackers.json"
+      }
+    ]
+  },
   "host_permissions": [
     "<all_urls>"
   ],

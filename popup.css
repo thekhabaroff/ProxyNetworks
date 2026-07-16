@@ -20,7 +20,7 @@
 body {
   margin: 0;
   width: 280px;
-  min-height: 100vh;
+  height: auto;
   font: 13px/1.4 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: var(--text);
   background:
@@ -33,6 +33,7 @@ body {
   padding: 12px;
   display: grid;
   gap: 12px;
+  min-height: 0;
 }
 
 .header {
@@ -159,6 +160,31 @@ select:focus-visible,
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.28);
+}
+
+.blocking-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--separator);
+}
+
+.content-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.content-toggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--success);
 }
 
 .settings-button {

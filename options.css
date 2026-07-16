@@ -224,6 +224,21 @@ textarea {
   gap: 6px;
 }
 
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  width: max-content;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.checkbox-field input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .field-header {
   display: flex;
   align-items: center;
@@ -397,6 +412,7 @@ textarea:focus-visible {
   letter-spacing: -0.01em;
   color: var(--text);
 }
+
 
 .panel > .field > span,
 .form > .field > span {
