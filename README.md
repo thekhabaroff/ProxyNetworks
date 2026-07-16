@@ -1,12 +1,26 @@
-# Proxy Networks
+<h1 align="center">Proxy Networks</h1>
 
 <p align="center">
   <img src="icons/logo-brand-128.png" width="128" height="128" alt="Proxy Networks logo">
 </p>
 
-Proxy Networks — расширение для Google Chrome на Manifest V3, которое хранит несколько прокси-профилей и позволяет быстро переключать HTTP, HTTPS и SOCKS5-прокси.
+<div align="center">
 
-Проект не требует сборки и не содержит сторонних runtime-зависимостей.
+![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Chrome](https://img.shields.io/badge/Google_Chrome-108%2B-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)
+![Manifest](https://img.shields.io/badge/Manifest-V3-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
+![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
+![Updated](https://img.shields.io/badge/Updated-16.07.2026-lightgrey?style=for-the-badge)
+![Stars](https://img.shields.io/github/stars/thekhabaroff/ProxyNetworks?style=for-the-badge)
+![Last Commit](https://img.shields.io/github/last-commit/thekhabaroff/ProxyNetworks?style=for-the-badge)
+![Issues](https://img.shields.io/github/issues/thekhabaroff/ProxyNetworks?style=for-the-badge)
+
+[Возможности](#возможности) • [Требования](#требования) • [Установка](#установка-из-исходников) • [Использование](#использование) • [Поддержать проект](#поддержать-проект)
+
+</div>
+
+Proxy Networks — расширение для Google Chrome на Manifest V3, которое хранит несколько прокси-профилей и позволяет быстро переключать HTTP, HTTPS и SOCKS5-прокси. Проект не требует сборки и не содержит сторонних runtime-зависимостей.
 
 ## Возможности
 
@@ -101,6 +115,72 @@ npm run check
 
 Если Chrome сообщает `ERR_TUNNEL_CONNECTION_FAILED`, проверьте адрес, порт и авторизацию нужного протокола. Низкоуровневую информацию о прокси можно посмотреть на `chrome://net-internals/#proxy`, а ошибки service worker — на карточке расширения в `chrome://extensions`.
 
-## Лицензия
+## Поддержать проект
 
-[MIT](LICENSE)
+Если расширение сэкономило тебе время — можешь поддержать разработку криптовалютой:
+
+<details>
+<summary><b>🟠 BTC</b></summary>
+
+```
+1CAWPNFJMAWxCany1A317yqHoZz4mq9MTE
+```
+
+</details>
+
+<details>
+<summary><b>🔷 EVM</b></summary>
+
+```
+0xbdfa3a427e457a99d7254af04b44fe76c347bd10
+```
+
+</details>
+
+<details>
+<summary><b>💚 TRC</b></summary>
+
+```
+TFGa8KRdcyCv3gk6khGU8NQvR8ot5UtiP5
+```
+
+</details>
+
+<details>
+<summary><b>🟣 TON</b></summary>
+
+```
+UQCacF30U98zSCbzd1NM5qMjjdkTygJwMjgDURobdXTIDN4-
+```
+
+</details>
+
+<details>
+<summary><b>💜 SOL</b></summary>
+
+```
+ETdRsuSYgpijG4RFckEQUoLfQ4CctibcoshTKyk1sCoW
+```
+
+</details>
+
+<details>
+<summary><b>🔵 APT</b></summary>
+
+```
+0x82b02deef3c3d8d21a665c53d9ea2e046813b6a92085efbc241b8acf69dc3af5
+```
+
+</details>
+
+> Каждый донат мотивирует развивать проект дальше 🙏
+
+---
+
+## 📄 Лицензия
+
+[MIT](LICENSE) — используйте свободно, упоминание автора приветствуется.
+
+---
+
+<div align="center">⭐ Поставь звезду, если проект оказался полезным!</div>
