@@ -14,14 +14,19 @@ const enabledToggle = document.getElementById('enabledToggle');
 const profileSelect = document.getElementById('profileSelect');
 const protocolSelect = document.getElementById('protocolSelect');
 const protocolField = document.getElementById('protocolField');
-const statusLine = document.getElementById('statusLine');
+const proxyGeoInfo = document.getElementById('proxyGeoInfo');
+const proxyGeoLocation = document.getElementById('proxyGeoLocation');
+const proxyGeoProviderRow = document.getElementById('proxyGeoProviderRow');
+const proxyGeoProvider = document.getElementById('proxyGeoProvider');
 const ipLine = document.getElementById('ipLine');
 const pingLine = document.getElementById('pingLine');
+const pingValue = document.getElementById('pingValue');
 const errorBanner = document.getElementById('errorBanner');
 const toggleLabel = document.getElementById('toggleLabel');
 const connectionHint = document.getElementById('connectionHint');
 const refreshIpButton = document.getElementById('refreshIpButton');
 const settingsButton = document.getElementById('settingsButton');
+const versionBadge = document.getElementById('versionBadge');
 const tipsList = document.getElementById('tipsList');
 const webRtcProtectionInput = document.getElementById('webRtcProtection');
 const webRtcInfoButton = document.getElementById('webRtcInfoButton');
@@ -38,12 +43,15 @@ let currentProtocol = 'auto';
 let refreshInProgress = false;
 let refreshTimerId = null;
 let webRtcProtectionState = null;
+let proxyGeoRequestId = 0;
 const LIVE_REFRESH_INTERVAL_MS = 3000;
 const WEB_RTC_INFO_DEFAULT = 'Снижает риск раскрытия реального IP через WebRTC. Может повлиять на звонки и P2P-соединения.';
 const infoControls = [
   { button: webRtcInfoButton, tooltip: webRtcInfoTip },
   { button: blockTrackingInfoButton, tooltip: blockTrackingInfoTip },
 ];
+
+versionBadge.textContent = `v${chrome.runtime.getManifest().version}`;
 
 async function loadStatus() {
   const [blockingSettings, response, webRtcStatus] = await Promise.all([
@@ -61,17 +69,18 @@ async function loadStatus() {
   pingLine.classList.toggle('hidden', !currentEnabled);
   protocolField.classList.toggle('hidden', !currentActiveProfileId);
   toggleLabel.textContent = currentEnabled ? 'Прокси включён' : 'Прокси выключен';
-  connectionHint.textContent = currentEnabled ? 'Защищённое подключение' : 'Подключение без прокси';
-  statusLine.textContent = currentEnabled ? `Активен: ${response?.activeProfileName ?? 'без названия'}` : '';
-  statusLine.classList.toggle('hidden', !currentEnabled);
-
+  connectionHint.textContent = currentEnabled
+    ? response?.routingMode === 'selected'
+      ? `Выборочно${response?.killSwitch ? ' · Kill Switch' : ''}`
+      : `Весь трафик${response?.killSwitch ? ' · Kill Switch' : ''}`
+    : 'Подключение без прокси';
   protocolSelect.value = currentProtocol;
   if (updateProtocolOptions()) {
-    currentProtocol = 'auto';
+    currentProtocol = protocolSelect.value;
     await sendRuntimeCommand({
       action: 'applyProfile',
       profileId: currentActiveProfileId,
-      protocol: 'auto',
+      protocol: currentProtocol,
     });
   }
 
@@ -82,6 +91,58 @@ async function loadStatus() {
   } else {
     errorBanner.textContent = '';
     errorBanner.classList.add('hidden');
+  }
+  void loadProxyGeo();
+}
+
+function renderProxyGeo(result) {
+  if (!result?.endpoint) {
+    proxyGeoInfo.classList.add('hidden');
+    return;
+  }
+
+  proxyGeoInfo.classList.remove('hidden');
+  if (result.geo) {
+    const city = result.geo.city && result.geo.city !== 'Город не указан'
+      ? ` · ${result.geo.city}`
+      : '';
+    proxyGeoLocation.textContent = `${result.geo.flag ?? '🌐'} ${result.geo.country ?? 'Страна не указана'}${city}`;
+    proxyGeoProvider.textContent = result.geo.provider ?? 'Не указан';
+    proxyGeoProviderRow.classList.remove('hidden');
+    return;
+  }
+
+  proxyGeoLocation.textContent = result.error || 'Не удалось определить локацию прокси.';
+  proxyGeoProvider.textContent = '';
+  proxyGeoProviderRow.classList.add('hidden');
+}
+
+async function loadProxyGeo() {
+  const profileId = currentActiveProfileId;
+  const requestId = ++proxyGeoRequestId;
+  if (!profileId) {
+    proxyGeoInfo.classList.add('hidden');
+    return;
+  }
+
+  proxyGeoInfo.classList.remove('hidden');
+  proxyGeoLocation.textContent = 'Прокси: определяю локацию…';
+  proxyGeoProvider.textContent = '';
+  proxyGeoProviderRow.classList.add('hidden');
+  try {
+    const response = await sendRuntimeMessage({
+      action: 'getProxyGeo',
+      profileId,
+      protocol: currentProtocol,
+    });
+    if (requestId !== proxyGeoRequestId || profileId !== currentActiveProfileId) return;
+    if (!response?.ok) {
+      throw new Error(response?.error || 'Не удалось определить локацию прокси.');
+    }
+    renderProxyGeo(response);
+  } catch (error) {
+    if (requestId !== proxyGeoRequestId || profileId !== currentActiveProfileId) return;
+    renderProxyGeo({ error: errorMessage(error) });
   }
 }
 
@@ -171,20 +232,39 @@ function renderProfiles() {
   }
 
   profileSelect.value = currentActiveProfileId ?? '';
+  updateProfileSelectState();
+}
+
+function updateProfileSelectState() {
+  const isLocked = profilesCache.length === 1 && currentActiveProfileId === profilesCache[0]?.id;
+  profileSelect.disabled = isLocked;
+  profileSelect.classList.toggle('select-locked', isLocked);
 }
 
 function updateProtocolOptions() {
   const activeProfile = profilesCache.find((profile) => profile.id === currentActiveProfileId);
   const availableProtocols = getConfiguredProtocols(activeProfile);
+  const showAutoOption = availableProtocols.length !== 1;
+  const allowedProtocols = showAutoOption
+    ? ['auto', ...availableProtocols]
+    : availableProtocols;
 
   [...protocolSelect.options].forEach((option) => {
-    option.hidden = option.value !== 'auto' && !availableProtocols.includes(option.value);
+    option.hidden = !allowedProtocols.includes(option.value);
   });
-  if (protocolSelect.value !== 'auto' && protocolSelect.selectedOptions[0]?.hidden) {
-    protocolSelect.value = 'auto';
+  if (!allowedProtocols.includes(protocolSelect.value)) {
+    protocolSelect.value = allowedProtocols[0] ?? 'auto';
+    updateProtocolSelectState(availableProtocols);
     return true;
   }
+  updateProtocolSelectState(availableProtocols);
   return false;
+}
+
+function updateProtocolSelectState(availableProtocols) {
+  const isLocked = Boolean(currentActiveProfileId) && availableProtocols.length <= 1;
+  protocolSelect.disabled = isLocked;
+  protocolSelect.classList.toggle('select-locked', isLocked);
 }
 
 async function loadProfiles() {
@@ -221,25 +301,25 @@ async function refreshIp() {
     const response = await sendRuntimeMessage({ action: 'checkProxy' });
     if (!response?.ok) {
       if (response?.busy) {
-        updateLiveText(ipLine, 'Текущий IP: выполняется проверка прокси');
+        updateLiveText(ipLine, 'Выполняется проверка…');
         return;
       }
-      updateLiveText(ipLine, `Текущий IP: ошибка (${response?.error ?? 'Не удалось проверить IP'})`);
-      updateLiveText(pingLine, 'Пинг: —', false);
+      updateLiveText(ipLine, `Ошибка: ${response?.error ?? 'Не удалось проверить IP'}`);
+      updateLiveText(pingValue, '—', false);
       if (currentEnabled) showPopupError(response?.error ?? 'Не удалось проверить IP');
       renderTips(response?.tips);
       return;
     }
-    updateLiveText(ipLine, `Текущий IP: ${response.ip ?? 'неизвестен'}`);
-    updateLiveText(pingLine, currentEnabled && Number.isFinite(response.ping)
-      ? `Пинг: ${response.ping} мс`
-      : 'Пинг: —', false);
+    updateLiveText(ipLine, response.ip ?? 'Неизвестен');
+    updateLiveText(pingValue, currentEnabled && Number.isFinite(response.ping)
+      ? `${response.ping} мс`
+      : '—', false);
     showPopupError('');
     renderTips([]);
   } catch (error) {
     const message = errorMessage(error);
-    updateLiveText(ipLine, `Текущий IP: ошибка (${message})`);
-    updateLiveText(pingLine, 'Пинг: —', false);
+    updateLiveText(ipLine, `Ошибка: ${message}`);
+    updateLiveText(pingValue, '—', false);
     if (currentEnabled) showPopupError(message);
     renderTips();
   } finally {
@@ -326,7 +406,7 @@ profileSelect.addEventListener('change', async () => {
   } catch (error) {
     await restoreUiAfterError(error, true);
   } finally {
-    profileSelect.disabled = false;
+    updateProfileSelectState();
   }
 });
 
@@ -341,7 +421,7 @@ protocolSelect.addEventListener('change', async () => {
   } catch (error) {
     await restoreUiAfterError(error);
   } finally {
-    protocolSelect.disabled = false;
+    updateProtocolOptions();
   }
 });
 

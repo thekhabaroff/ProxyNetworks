@@ -57,6 +57,13 @@ input {
   min-height: 34px;
 }
 
+.header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
 .brand-lockup {
   min-width: 0;
   gap: 9px;
@@ -96,6 +103,23 @@ input {
   border-radius: 9px;
   color: var(--muted);
   background: transparent;
+}
+
+.version-badge {
+  display: inline-flex;
+  min-height: 22px;
+  padding: 3px 7px;
+  align-items: center;
+  border: 1px solid rgba(83, 229, 209, 0.22);
+  border-radius: 999px;
+  color: var(--accent-bright);
+  background: rgba(83, 229, 209, 0.08);
+  box-shadow: inset 0 1px 0 rgba(220, 255, 249, 0.06);
+  font-size: 9px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
 .settings-button svg {
@@ -200,17 +224,64 @@ input {
   font-weight: 500;
 }
 
+.connection-selectors {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(126, 243, 227, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(140deg, rgba(83, 229, 209, 0.07), rgba(2, 18, 25, 0.16));
+}
+
 .field {
   display: grid;
   gap: 5px;
 }
 
-.field > span {
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--muted);
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.045em;
   text-transform: uppercase;
+}
+
+.field-heading small {
+  padding: 2px 5px;
+  border: 1px solid rgba(83, 229, 209, 0.2);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(83, 229, 209, 0.08);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.selector-field {
+  position: relative;
+}
+
+.selector-field::before {
+  position: absolute;
+  top: 32px;
+  left: 10px;
+  z-index: 1;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  content: "";
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(83, 229, 209, 0.68);
+  pointer-events: none;
+}
+
+.protocol-selector::before {
+  background: #8ba8ad;
+  box-shadow: none;
 }
 
 select,
@@ -229,12 +300,13 @@ button {
 select {
   width: 100%;
   min-height: 34px;
-  padding: 7px 31px 7px 10px;
+  padding: 7px 31px 7px 22px;
   appearance: none;
   background:
     linear-gradient(45deg, transparent 50%, var(--muted) 50%) calc(100% - 15px) 51% / 5px 5px no-repeat,
     linear-gradient(135deg, var(--muted) 50%, transparent 50%) calc(100% - 10px) 51% / 5px 5px no-repeat,
     var(--field);
+  font-weight: 650;
 }
 
 button {
@@ -270,24 +342,93 @@ select:disabled,
   opacity: 0.52;
 }
 
+.selector-field select.select-locked {
+  padding-right: 10px;
+  border-color: rgba(126, 243, 227, 0.16);
+  color: #d9f8f3;
+  background: rgba(4, 20, 28, 0.66);
+  cursor: default;
+  opacity: 1;
+}
+
 .live-data {
   display: grid;
-  gap: 4px;
-  padding: 8px 9px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid rgba(126, 243, 227, 0.09);
-  border-radius: 9px;
-  background: rgba(0, 9, 14, 0.22);
+  border-radius: 11px;
+  background:
+    linear-gradient(135deg, rgba(83, 229, 209, 0.06), transparent 60%),
+    rgba(0, 9, 14, 0.28);
 }
 
-.status,
-.ip {
-  min-height: 17px;
+.proxy-geo-info {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(126, 243, 227, 0.1);
+}
+
+.proxy-geo-location {
+  overflow: hidden;
+  color: #effffc;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-geo-provider-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+  font-size: 10px;
 }
 
-.status {
+.proxy-geo-provider {
+  overflow: hidden;
+  color: #b9d8d5;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-metrics {
+  display: grid;
+  gap: 5px;
+}
+
+.metric-row {
+  display: flex;
+  min-width: 0;
+  min-height: 17px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 580;
+}
+
+.metric-value {
+  overflow: hidden;
+  color: #d9f8f3;
+  font-size: 11px;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ping-value {
   color: var(--accent-bright);
 }
 

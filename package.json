@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Chrome MV3 extension for managing proxy profiles.",
   "scripts": {
-    "check": "node --check background.js && node --check blocker.js && node --check config.js && node --check geosite.js && node --check options.js && node --check popup.js && node --check storage.js && node --check utils.js"
+    "check": "node --check background.js && node --check blocker.js && node --check config.js && node --check geo.js && node --check geosite.js && node --check options.js && node --check popup.js && node --check storage.js && node --check utils.js"
   },
   "engines": {
     "node": ">=18"

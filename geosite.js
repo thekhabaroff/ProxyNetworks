@@ -303,7 +303,7 @@ export async function resolveGeositeDomainList(entries) {
 export function geositeNamesFromProfiles(profiles) {
   const names = new Set();
   for (const profile of Array.isArray(profiles) ? profiles : []) {
-    for (const list of [profile?.bypassList, profile?.blockList]) {
+    for (const list of [profile?.proxyList, profile?.bypassList, profile?.blockList]) {
       for (const entry of Array.isArray(list) ? list : []) {
         const name = geositeNameFromEntry(entry);
         if (name) names.add(name);
@@ -311,6 +311,22 @@ export function geositeNamesFromProfiles(profiles) {
     }
   }
   return [...names];
+}
+
+export async function getGeositeCacheStatus(names) {
+  const cache = await getCache();
+  return [...new Set(Array.isArray(names) ? names : [])]
+    .filter((name) => GEOSITE_NAME_PATTERN.test(name))
+    .map((name) => {
+      const entry = cache[name];
+      return {
+        name,
+        cached: Array.isArray(entry?.domains) && entry.domains.length > 0,
+        domains: Array.isArray(entry?.domains) ? entry.domains.length : 0,
+        updatedAt: Number(entry?.updatedAt) || null,
+        fresh: isFresh(entry),
+      };
+    });
 }
 
 export async function refreshGeositeCaches(names) {

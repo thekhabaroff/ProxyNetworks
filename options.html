@@ -48,6 +48,16 @@
             <input id="name" type="text" maxlength="120" required autocomplete="off" />
           </label>
 
+          <label class="field">
+            <span>Теги, через запятую</span>
+            <input id="profileTags" type="text" maxlength="400" placeholder="работа, Швеция, быстрый" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Заметка</span>
+            <textarea id="profileNote" rows="2" maxlength="2000" placeholder="Назначение профиля, провайдер или важные детали"></textarea>
+          </label>
+
           <section class="panel">
             <div class="panel-heading">
               <div>
@@ -60,15 +70,42 @@
               <div class="proxy-import-copy">
                 <p class="proxy-import-title">Форматы вставки</p>
                 <div class="proxy-format-list" aria-label="Поддерживаемые форматы прокси">
-                  <code>host:port</code>
-                  <code>host:port:user:pass</code>
-                  <code>host:port@user:pass</code>
-                  <code>user:pass:host:port</code>
-                  <code>protocol://user:pass@host:port</code>
+                  <code>hostname:port</code>
+                  <code>hostname:port:username:password</code>
+                  <code>hostname:port@username:password</code>
+                  <code>username:password:hostname:port</code>
+                  <code>http://username:password@server:port</code>
                 </div>
-                <p class="proxy-import-note">Поддерживаются URL и разделители <code>:</code>, <code>;</code>, <code>|</code>.</p>
+                <p class="proxy-import-note">
+                  <span class="proxy-import-note-label">Также поддерживаются</span>
+                  <span>URL и разделители</span>
+                  <span class="proxy-separators" aria-label="Разделители: двоеточие, точка с запятой, вертикальная черта">
+                    <code>:</code><code>;</code><code>|</code>
+                  </span>
+                </p>
               </div>
               <button id="pasteProxyButton" type="button">Вставить из буфера</button>
+            </div>
+            <div class="routing-settings">
+              <label class="field">
+                <span>Маршрутизация</span>
+                <select id="routingMode">
+                  <option value="all">Весь трафик через прокси</option>
+                  <option value="selected">Только выбранные сайты через прокси</option>
+                </select>
+              </label>
+              <div class="kill-switch-setting">
+                <label class="checkbox-field">
+                  <input id="killSwitch" type="checkbox" />
+                  <span>Kill Switch</span>
+                </label>
+                <small class="hint">Запрещает прямой fallback, если прокси для маршрута недоступен.</small>
+              </div>
+            </div>
+            <div id="proxyListField" class="field hidden">
+              <label for="proxyList">Через прокси, по одному сайту на строку или через запятую</label>
+              <textarea id="proxyList" rows="4" spellcheck="false" placeholder="*.example.com&#10;geosite:google"></textarea>
+              <small class="hint">Только эти домены и geosite-базы идут через прокси. Остальной трафик идёт напрямую.</small>
             </div>
             <div class="advanced">
               <div class="field">
@@ -96,10 +133,12 @@
               </div>
             </div>
 
-            <div class="field">
+            <div id="manualBypassField" class="field">
               <label for="bypassList">Исключения, по одному на строку или через запятую</label>
-              <textarea id="bypassList" rows="4" spellcheck="false" placeholder="*.example.com&#10;geosite:category-ip-geo"></textarea>
+              <textarea id="bypassList" rows="4" spellcheck="false" placeholder="*.example.com&#10;geosite:category-ru"></textarea>
               <small class="hint">Запросы к этим доменам идут напрямую, минуя выбранный прокси. Поддерживаются домены и geosite-базы.</small>
+            </div>
+            <div id="builtinBypassOptions" class="builtin-bypass-options">
               <label class="checkbox-field">
                 <input id="bypassRussianResources" type="checkbox" />
                 <span>Исключить российские ресурсы</span>
@@ -110,7 +149,7 @@
               </label>
             </div>
 
-            <div class="field">
+            <div id="blockListField" class="field">
               <label for="blockList">Блокировать, по одному на строку или через запятую</label>
               <textarea id="blockList" rows="4" spellcheck="false" placeholder="*.example.com&#10;geosite:category-ads-all"></textarea>
               <small class="hint">Запросы к этим доменам блокируются Chrome. Поддерживаются домены и geosite-базы.</small>
@@ -148,6 +187,41 @@
             <button id="saveButton" type="submit" class="primary">Сохранить</button>
           </div>
         </form>
+
+        <aside class="profile-inspector" aria-label="Диагностика и geosite-базы">
+          <section class="inspector-card">
+            <div class="inspector-heading">
+              <div>
+                <p class="eyebrow">PROFILE HEALTH</p>
+                <h3>Диагностика</h3>
+              </div>
+              <span id="diagnosticsState" class="state-badge">Не сохранён</span>
+            </div>
+            <p id="diagnosticsProfileName" class="inspector-profile-name">Новый профиль</p>
+            <dl class="diagnostics-list">
+              <div><dt>Маршрут</dt><dd id="diagnosticsRouting">Весь трафик</dd></div>
+              <div><dt>Прокси</dt><dd id="diagnosticsEndpoints">0 из 3</dd></div>
+              <div><dt>Исключения</dt><dd id="diagnosticsBypass">0</dd></div>
+              <div><dt>Блокировка</dt><dd id="diagnosticsBlock">0</dd></div>
+            </dl>
+            <button id="diagnosticsCheckButton" type="button">Проверить соединения</button>
+            <div id="diagnosticsResults" class="diagnostics-results" role="status" aria-live="polite">Проверка ещё не запускалась.</div>
+          </section>
+
+          <section class="inspector-card">
+            <div class="inspector-heading">
+              <div>
+                <p class="eyebrow">DATABASES</p>
+                <h3>Geosite-базы</h3>
+              </div>
+              <button id="refreshGeositeButton" type="button" class="compact-button">Обновить</button>
+            </div>
+            <div id="geositeStatusList" class="geosite-status-list" role="status" aria-live="polite">
+              В профиле нет geosite-баз.
+            </div>
+            <p class="hint">Кэш обновляется ежедневно в 00:00. Здесь можно запустить обновление вручную.</p>
+          </section>
+        </aside>
 
       </section>
     </main>

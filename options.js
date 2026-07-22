@@ -9,6 +9,7 @@ import {
   saveProfiles,
 } from './storage.js';
 import { geositeNameFromEntry } from './geosite.js';
+import { getConfiguredProtocols } from './config.js';
 import {
   errorMessage,
   isValidProxyHost,
@@ -26,15 +27,24 @@ const formTitle = document.getElementById('formTitle');
 const profileForm = document.getElementById('profileForm');
 const profileIdInput = document.getElementById('profileId');
 const nameInput = document.getElementById('name');
+const profileTagsInput = document.getElementById('profileTags');
+const profileNoteInput = document.getElementById('profileNote');
 const httpHostInput = document.getElementById('httpHost');
 const httpPortInput = document.getElementById('httpPort');
 const httpsHostInput = document.getElementById('httpsHost');
 const httpsPortInput = document.getElementById('httpsPort');
 const socksHostInput = document.getElementById('socksHost');
 const socksPortInput = document.getElementById('socksPort');
+const routingModeInput = document.getElementById('routingMode');
+const proxyListField = document.getElementById('proxyListField');
+const proxyListInput = document.getElementById('proxyList');
+const killSwitchInput = document.getElementById('killSwitch');
+const manualBypassField = document.getElementById('manualBypassField');
 const bypassListInput = document.getElementById('bypassList');
 const bypassRussianResourcesInput = document.getElementById('bypassRussianResources');
 const bypassLocalNetworksInput = document.getElementById('bypassLocalNetworks');
+const builtinBypassOptions = document.getElementById('builtinBypassOptions');
+const blockListField = document.getElementById('blockListField');
 const blockListInput = document.getElementById('blockList');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
@@ -49,6 +59,16 @@ const importProfilesInput = document.getElementById('importProfilesInput');
 const togglePasswordButton = document.getElementById('togglePasswordButton');
 const clearPasswordButton = document.getElementById('clearPasswordButton');
 const pasteProxyButton = document.getElementById('pasteProxyButton');
+const diagnosticsState = document.getElementById('diagnosticsState');
+const diagnosticsProfileName = document.getElementById('diagnosticsProfileName');
+const diagnosticsRouting = document.getElementById('diagnosticsRouting');
+const diagnosticsEndpoints = document.getElementById('diagnosticsEndpoints');
+const diagnosticsBypass = document.getElementById('diagnosticsBypass');
+const diagnosticsBlock = document.getElementById('diagnosticsBlock');
+const diagnosticsCheckButton = document.getElementById('diagnosticsCheckButton');
+const diagnosticsResults = document.getElementById('diagnosticsResults');
+const refreshGeositeButton = document.getElementById('refreshGeositeButton');
+const geositeStatusList = document.getElementById('geositeStatusList');
 
 const ALLOWED_SCHEMES = new Set(['http', 'https', 'socks5']);
 const PROXY_URL_PROTOCOLS = new Set(['http:', 'https:', 'socks:', 'socks5:']);
@@ -67,8 +87,14 @@ let profiles = [];
 let selectedProfileId = null;
 let successTimer = null;
 let draggedProfileId = null;
+let diagnosticsRefreshTimer = null;
+let proxyGeoRequestId = 0;
+const profileGeoById = new Map();
 const proxyStatusTimers = new Map();
 const PROXY_RESULT_TIMEOUT_MS = 10000;
+const EXPORT_FORMAT = 'proxy-networks-export';
+const EXPORT_VERSION = 2;
+const EXPORT_KDF_ITERATIONS = 250000;
 
 function showError(message) {
   if (!message) {
@@ -96,6 +122,126 @@ function showSuccess(message) {
 
 function formatStringList(items) {
   return Array.isArray(items) ? items.join('\n') : '';
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function deriveExportKey(passphrase, salt, iterations, usages) {
+  const material = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    usages,
+  );
+}
+
+async function encryptExportPayload(payload, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveExportKey(passphrase, salt, EXPORT_KDF_ITERATIONS, ['encrypt']);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(payload)),
+  );
+  return {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    encrypted: true,
+    kdf: {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: EXPORT_KDF_ITERATIONS,
+      salt: bytesToBase64(salt),
+    },
+    cipher: {
+      name: 'AES-GCM',
+      iv: bytesToBase64(iv),
+      data: bytesToBase64(new Uint8Array(encrypted)),
+    },
+  };
+}
+
+async function decryptExportPayload(envelope) {
+  const iterations = Number(envelope?.kdf?.iterations);
+  if (envelope?.format !== EXPORT_FORMAT
+    || envelope?.kdf?.name !== 'PBKDF2'
+    || envelope?.kdf?.hash !== 'SHA-256'
+    || envelope?.cipher?.name !== 'AES-GCM'
+    || !Number.isInteger(iterations)
+    || iterations < 100000
+    || iterations > 1000000) {
+    throw new Error('Формат защищённого экспорта не поддерживается.');
+  }
+
+  const passphrase = prompt('Введите пароль защищённого экспорта:');
+  if (passphrase === null) {
+    throw new Error('Импорт отменён.');
+  }
+  if (!passphrase) {
+    throw new Error('Пароль экспорта не может быть пустым.');
+  }
+
+  try {
+    const salt = base64ToBytes(envelope.kdf.salt);
+    const iv = base64ToBytes(envelope.cipher.iv);
+    const ciphertext = base64ToBytes(envelope.cipher.data);
+    if (salt.length < 16 || iv.length !== 12 || ciphertext.length < 16) {
+      throw new Error('Повреждённые параметры шифрования.');
+    }
+    const key = await deriveExportKey(passphrase, salt, iterations, ['decrypt']);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error('Расшифрованный файл повреждён.');
+    }
+    throw new Error('Неверный пароль или повреждённый файл экспорта.');
+  }
+}
+
+function profileForExport(profile, includePasswords) {
+  return {
+    name: profile.name,
+    tags: profile.tags,
+    note: profile.note,
+    proxyForHttp: profile.proxyForHttp,
+    proxyForHttps: profile.proxyForHttps,
+    socks: profile.socks,
+    routingMode: profile.routingMode,
+    proxyList: profile.proxyList,
+    killSwitch: profile.killSwitch === true,
+    bypassList: profile.bypassList,
+    bypassRussianResources: profile.bypassRussianResources === true,
+    bypassLocalNetworks: profile.bypassLocalNetworks === true,
+    blockList: profile.blockList,
+    username: profile.username,
+    password: includePasswords ? profile.password : '',
+  };
 }
 
 function parseProxyUrl(value) {
@@ -149,10 +295,53 @@ function renderProfileList() {
     item.draggable = true;
     item.title = 'Перетащите профиль, чтобы изменить порядок.';
     item.setAttribute('aria-pressed', String(profile.id === selectedProfileId));
+    const summary = document.createElement('span');
+    summary.className = 'profile-summary';
     const name = document.createElement('span');
     name.className = 'profile-name';
     name.textContent = profile.name || profile.id;
-    item.append(name);
+    summary.append(name);
+    item.append(summary);
+    if (profile.tags?.length) {
+      const tags = document.createElement('span');
+      tags.className = 'profile-tags';
+      for (const tagText of profile.tags) {
+        const tag = document.createElement('span');
+        tag.className = 'profile-tag';
+        tag.textContent = tagText;
+        tags.append(tag);
+      }
+      item.append(tags);
+    }
+    const geoResults = profileGeoById.get(profile.id) ?? [];
+    const uniqueLocations = new Map();
+    for (const result of geoResults) {
+      if (!result?.geo) continue;
+      const geo = result.geo;
+      const key = `${geo.countryCode ?? geo.country ?? ''}|${geo.city ?? ''}|${geo.provider ?? ''}`;
+      uniqueLocations.set(key, geo);
+    }
+    if (uniqueLocations.size > 0) {
+      const locations = document.createElement('span');
+      locations.className = 'profile-geo-list';
+      for (const geo of uniqueLocations.values()) {
+        const location = document.createElement('span');
+        location.className = 'profile-geo';
+        const flag = document.createElement('span');
+        flag.className = 'profile-geo-flag';
+        flag.textContent = geo.flag ?? '🌐';
+        const country = document.createElement('span');
+        country.className = 'profile-geo-country';
+        country.textContent = `${geo.country ?? 'Страна не указана'}${geo.city && geo.city !== 'Город не указан' ? ` · ${geo.city}` : ''}`;
+        const provider = document.createElement('span');
+        provider.className = 'profile-geo-provider';
+        provider.textContent = geo.provider ?? 'Провайдер не указан';
+        location.title = `${country.textContent} · ${provider.textContent}`;
+        location.append(flag, country, provider);
+        locations.append(location);
+      }
+      item.append(locations);
+    }
     item.addEventListener('click', () => {
       loadProfile(profile.id);
     });
@@ -274,16 +463,148 @@ function resetProtocolStatuses() {
   }
 }
 
+function updateRoutingVisibility() {
+  const selectedOnly = routingModeInput.value === 'selected';
+  proxyListField.classList.toggle('hidden', !selectedOnly);
+  manualBypassField.classList.toggle('hidden', selectedOnly);
+  blockListField.classList.toggle('hidden', selectedOnly);
+  if (selectedOnly) {
+    proxyListField.append(builtinBypassOptions);
+  } else {
+    manualBypassField.after(builtinBypassOptions);
+  }
+  diagnosticsRouting.textContent = selectedOnly
+    ? `Только выбранные сайты${killSwitchInput.checked ? ' · Kill Switch' : ''}`
+    : `Весь трафик${killSwitchInput.checked ? ' · Kill Switch' : ''}`;
+}
+
+async function loadProxyGeo() {
+  const profileId = profileIdInput.value;
+  const requestId = ++proxyGeoRequestId;
+  const profile = profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    return;
+  }
+
+  try {
+    const protocols = getConfiguredProtocols(profile);
+    const responses = await Promise.all(protocols.map((protocol) => sendRuntimeCommand({
+      action: 'getProxyGeo',
+      profileId,
+      protocol,
+    })));
+    if (requestId !== proxyGeoRequestId || profileId !== profileIdInput.value) return;
+    profileGeoById.set(profileId, responses);
+    renderProfileList();
+  } catch (error) {
+    if (requestId !== proxyGeoRequestId || profileId !== profileIdInput.value) return;
+    console.warn('Unable to determine proxy location:', error);
+  }
+}
+
+function renderGeositeStatuses(statuses) {
+  geositeStatusList.replaceChildren();
+  if (!Array.isArray(statuses) || statuses.length === 0) {
+    geositeStatusList.textContent = profileIdInput.value
+      ? 'В профиле нет geosite-баз.'
+      : 'Сохраните профиль, чтобы управлять geosite-базами.';
+    refreshGeositeButton.disabled = true;
+    return;
+  }
+
+  refreshGeositeButton.disabled = false;
+  for (const status of statuses) {
+    const item = document.createElement('div');
+    item.className = 'geosite-status-item';
+    const name = document.createElement('span');
+    name.className = 'geosite-status-name';
+    name.textContent = `geosite:${status.name}`;
+    const state = document.createElement('span');
+    state.className = `geosite-status-state ${status.fresh ? 'fresh' : 'stale'}`;
+    state.textContent = status.fresh ? 'Актуальна' : status.cached ? 'Устарела' : 'Не загружена';
+    const meta = document.createElement('span');
+    meta.className = 'geosite-status-meta';
+    const updatedAt = status.updatedAt
+      ? new Date(status.updatedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
+      : '—';
+    meta.textContent = `${status.domains.toLocaleString('ru-RU')} доменов · ${updatedAt}`;
+    item.append(name, state, meta);
+    geositeStatusList.append(item);
+  }
+}
+
+async function loadGeositeStatuses() {
+  const profileId = profileIdInput.value;
+  if (!profileId) {
+    renderGeositeStatuses([]);
+    return;
+  }
+  try {
+    const response = await sendRuntimeCommand({ action: 'getGeositeStatus', profileId });
+    renderGeositeStatuses(response.statuses);
+  } catch (error) {
+    geositeStatusList.textContent = `Не удалось прочитать кэш: ${errorMessage(error)}`;
+    refreshGeositeButton.disabled = true;
+  }
+}
+
+async function refreshDiagnostics() {
+  const draft = collectProfile();
+  const endpoints = [draft.proxyForHttp, draft.proxyForHttps, draft.socks].filter(Boolean).length;
+  diagnosticsProfileName.textContent = draft.name || 'Новый профиль';
+  diagnosticsEndpoints.textContent = `${endpoints} из 3`;
+  diagnosticsBypass.textContent = String(
+    (draft.routingMode === 'selected' ? 0 : draft.bypassList.length)
+      + (draft.bypassRussianResources ? 1 : 0)
+      + (draft.bypassLocalNetworks ? 1 : 0),
+  );
+  diagnosticsBlock.textContent = String(draft.routingMode === 'selected' ? 0 : draft.blockList.length);
+  diagnosticsCheckButton.disabled = endpoints === 0;
+  updateRoutingVisibility();
+
+  diagnosticsState.className = 'state-badge';
+  if (!draft.id) {
+    diagnosticsState.textContent = 'Не сохранён';
+    return;
+  }
+  try {
+    const status = await sendRuntimeCommand({ action: 'getStatus' });
+    if (status.activeProfileId === draft.id && status.enabled) {
+      diagnosticsState.textContent = 'Активен';
+      diagnosticsState.classList.add('active');
+    } else if (status.activeProfileId === draft.id) {
+      diagnosticsState.textContent = 'Выбран';
+      diagnosticsState.classList.add('selected');
+    } else {
+      diagnosticsState.textContent = 'Сохранён';
+    }
+  } catch {
+    diagnosticsState.textContent = 'Состояние неизвестно';
+  }
+}
+
+function scheduleDiagnosticsRefresh() {
+  clearTimeout(diagnosticsRefreshTimer);
+  diagnosticsRefreshTimer = setTimeout(() => {
+    void refreshDiagnostics();
+  }, 100);
+}
+
 function fillForm(profile) {
   resetProtocolStatuses();
   profileIdInput.value = profile?.id ?? '';
   nameInput.value = profile?.name ?? '';
+  profileTagsInput.value = Array.isArray(profile?.tags) ? profile.tags.join(', ') : '';
+  profileNoteInput.value = profile?.note ?? '';
   httpHostInput.value = profile?.proxyForHttp?.host ?? '';
   httpPortInput.value = profile?.proxyForHttp?.port ? String(profile.proxyForHttp.port) : '';
   httpsHostInput.value = profile?.proxyForHttps?.host ?? '';
   httpsPortInput.value = profile?.proxyForHttps?.port ? String(profile.proxyForHttps.port) : '';
   socksHostInput.value = profile?.socks?.host ?? '';
   socksPortInput.value = profile?.socks?.port ? String(profile.socks.port) : '';
+  routingModeInput.value = profile?.routingMode === 'selected' ? 'selected' : 'all';
+  proxyListInput.value = formatStringList(profile?.proxyList ?? []);
+  killSwitchInput.checked = profile?.killSwitch === true;
   bypassListInput.value = formatStringList(profile?.bypassList ?? []);
   bypassRussianResourcesInput.checked = profile?.bypassRussianResources === true;
   bypassLocalNetworksInput.checked = profile?.bypassLocalNetworks === true;
@@ -294,6 +615,12 @@ function fillForm(profile) {
   togglePasswordButton.textContent = 'Показать пароль';
   formTitle.textContent = profile?.id ? `Профиль: ${profile.name || profile.id}` : 'Новый профиль';
   deleteButton.disabled = !profile?.id;
+  diagnosticsResults.className = 'diagnostics-results';
+  diagnosticsResults.textContent = 'Проверка ещё не запускалась.';
+  updateRoutingVisibility();
+  void refreshDiagnostics();
+  void loadGeositeStatuses();
+  void loadProxyGeo();
 }
 
 function loadProfile(id) {
@@ -358,19 +685,37 @@ function validateProfile(data) {
     return 'SOCKS прокси должен использовать только socks5.';
   }
 
-  for (const [entries, label] of [
-    [data.bypassList, 'исключениях'],
-    [data.blockList, 'списке блокировки'],
-  ]) {
+  if (!['all', 'selected'].includes(data.routingMode)) {
+    return 'Выбран неизвестный режим маршрутизации.';
+  }
+  if (data.routingMode === 'selected' && data.proxyList.length === 0) {
+    return 'Для выборочной маршрутизации добавьте хотя бы один сайт.';
+  }
+
+  const listsToValidate = [[data.proxyList, 'списке маршрутизации']];
+  if (data.routingMode !== 'selected') {
+    listsToValidate.push(
+      [data.bypassList, 'исключениях'],
+      [data.blockList, 'списке блокировки'],
+    );
+  }
+  for (const [entries, label] of listsToValidate) {
     for (const entry of entries) {
       if (/^geosite:/i.test(entry) && !geositeNameFromEntry(entry)) {
         return `Некорректная geosite-запись в ${label}: ${entry}`;
       }
     }
   }
-  for (const entry of data.blockList) {
+  for (const entry of data.proxyList) {
     if (!geositeNameFromEntry(entry) && !normalizeDomain(entry)) {
-      return `Некорректный домен в списке блокировки: ${entry}`;
+      return `Некорректный домен в списке маршрутизации: ${entry}`;
+    }
+  }
+  if (data.routingMode !== 'selected') {
+    for (const entry of data.blockList) {
+      if (!geositeNameFromEntry(entry) && !normalizeDomain(entry)) {
+        return `Некорректный домен в списке блокировки: ${entry}`;
+      }
     }
   }
   if (data.username.length > 256) {
@@ -379,7 +724,12 @@ function validateProfile(data) {
   if (data.password.length > 1024) {
     return 'Пароль не должен превышать 1024 символа.';
   }
-
+  if (data.note.length > 2000) {
+    return 'Заметка не должна превышать 2000 символов.';
+  }
+  if (data.tags.length > 12 || data.tags.some((tag) => tag.length > 32)) {
+    return 'Используйте не более 12 тегов длиной до 32 символов каждый.';
+  }
   return '';
 }
 
@@ -387,9 +737,14 @@ function collectProfile() {
   return {
     id: profileIdInput.value || undefined,
     name: nameInput.value.trim(),
+    tags: normalizeStringList(profileTagsInput.value),
+    note: profileNoteInput.value.trim(),
     proxyForHttp: endpointFromInputs('http', httpHostInput, httpPortInput),
     proxyForHttps: endpointFromInputs('https', httpsHostInput, httpsPortInput),
     socks: endpointFromInputs('socks5', socksHostInput, socksPortInput),
+    routingMode: routingModeInput.value,
+    proxyList: normalizeStringList(proxyListInput.value),
+    killSwitch: killSwitchInput.checked,
     bypassList: normalizeStringList(bypassListInput.value),
     bypassRussianResources: bypassRussianResourcesInput.checked,
     bypassLocalNetworks: bypassLocalNetworksInput.checked,
@@ -487,46 +842,79 @@ deleteButton.addEventListener('click', async () => {
   }
 });
 
-for (const button of checkProxyButtons) {
-  button.addEventListener('click', async () => {
-    const protocol = button.dataset.protocol;
-    const status = document.querySelector(`.proxy-status[data-protocol="${protocol}"]`);
-    const fields = PROXY_FIELDS[protocol];
-    const endpoint = fields
-      ? endpointFromInputs(fields.scheme, fields.hostInput, fields.portInput)
-      : null;
-    clearProxyStatusTimer(protocol);
-    if (!endpoint || !isValidProxyHost(endpoint.host) || !normalizePort(endpoint.port)) {
-      setProxyStatus(status, 'invalid', 'Укажите корректные хост и порт.');
-      setProxyPing(protocol);
-      scheduleProxyCheckResultClear(protocol);
-      return;
-    }
-    for (const checkButton of checkProxyButtons) checkButton.disabled = true;
-    setProxyStatus(status, 'checking', 'Проверка…');
+async function checkProxyProtocol(protocol) {
+  const status = document.querySelector(`.proxy-status[data-protocol="${protocol}"]`);
+  const fields = PROXY_FIELDS[protocol];
+  const endpoint = fields
+    ? endpointFromInputs(fields.scheme, fields.hostInput, fields.portInput)
+    : null;
+  clearProxyStatusTimer(protocol);
+  if (!endpoint || !isValidProxyHost(endpoint.host) || !normalizePort(endpoint.port)) {
+    const result = { ok: false, skipped: !endpoint, error: 'Укажите корректные хост и порт.' };
+    if (endpoint) setProxyStatus(status, 'invalid', result.error);
     setProxyPing(protocol);
-    try {
-      const response = await sendRuntimeMessage({
-        action: 'checkProxyEndpoint',
-        endpoint,
-        username: usernameInput.value.trim(),
-        password: passwordInput.value,
-      });
-      setProxyStatus(
-        status,
-        response?.ok ? 'online' : 'offline',
-        response?.error || (response?.ip ? `IP: ${response.ip}` : ''),
-      );
-      setProxyPing(protocol, response?.ok ? response.ping : null);
-    } catch (error) {
-      setProxyStatus(status, 'offline', errorMessage(error));
-      setProxyPing(protocol);
-    } finally {
-      for (const checkButton of checkProxyButtons) checkButton.disabled = false;
-      scheduleProxyCheckResultClear(protocol);
-    }
+    if (endpoint) scheduleProxyCheckResultClear(protocol);
+    return result;
+  }
+
+  for (const checkButton of checkProxyButtons) checkButton.disabled = true;
+  setProxyStatus(status, 'checking', 'Проверка…');
+  setProxyPing(protocol);
+  let response;
+  try {
+    response = await sendRuntimeMessage({
+      action: 'checkProxyEndpoint',
+      endpoint,
+      username: usernameInput.value.trim(),
+      password: passwordInput.value,
+    });
+    setProxyStatus(
+      status,
+      response?.ok ? 'online' : 'offline',
+      response?.error || (response?.ip ? `IP: ${response.ip}` : ''),
+    );
+    setProxyPing(protocol, response?.ok ? response.ping : null);
+    return response ?? { ok: false, error: 'Проверка не вернула результат.' };
+  } catch (error) {
+    response = { ok: false, error: errorMessage(error) };
+    setProxyStatus(status, 'offline', response.error);
+    setProxyPing(protocol);
+    return response;
+  } finally {
+    for (const checkButton of checkProxyButtons) checkButton.disabled = false;
+    scheduleProxyCheckResultClear(protocol);
+  }
+}
+
+for (const button of checkProxyButtons) {
+  button.addEventListener('click', () => {
+    void checkProxyProtocol(button.dataset.protocol);
   });
 }
+
+diagnosticsCheckButton.addEventListener('click', async () => {
+  diagnosticsCheckButton.disabled = true;
+  diagnosticsResults.className = 'diagnostics-results';
+  diagnosticsResults.textContent = 'Проверяю настроенные соединения…';
+  const lines = [];
+  let failures = 0;
+  try {
+    for (const protocol of Object.keys(PROXY_FIELDS)) {
+      const result = await checkProxyProtocol(protocol);
+      if (result.skipped) continue;
+      if (result.ok) {
+        lines.push(`${PROTOCOL_NAMES[protocol]}: ${result.ping} мс · IP ${result.ip ?? 'неизвестен'}`);
+      } else {
+        failures += 1;
+        lines.push(`${PROTOCOL_NAMES[protocol]}: ошибка — ${result.error}`);
+      }
+    }
+    diagnosticsResults.textContent = lines.join('\n') || 'Нет настроенных соединений.';
+    diagnosticsResults.classList.add(failures > 0 ? 'failed' : 'successful');
+  } finally {
+    diagnosticsCheckButton.disabled = false;
+  }
+});
 
 for (const [protocol, fields] of Object.entries(PROXY_FIELDS)) {
   for (const input of [fields.hostInput, fields.portInput]) {
@@ -540,10 +928,37 @@ for (const [protocol, fields] of Object.entries(PROXY_FIELDS)) {
 
 profileForm.addEventListener('input', () => {
   showSuccess('');
+  scheduleDiagnosticsRefresh();
 });
+
+routingModeInput.addEventListener('change', updateRoutingVisibility);
+killSwitchInput.addEventListener('change', updateRoutingVisibility);
 
 usernameInput.addEventListener('input', resetProtocolStatuses);
 passwordInput.addEventListener('input', resetProtocolStatuses);
+
+refreshGeositeButton.addEventListener('click', async () => {
+  const profileId = profileIdInput.value;
+  if (!profileId) {
+    showError('Сначала сохраните профиль.');
+    return;
+  }
+  refreshGeositeButton.disabled = true;
+  geositeStatusList.textContent = 'Обновляю geosite-базы…';
+  try {
+    const response = await sendRuntimeCommand({ action: 'refreshGeosite', profileId });
+    renderGeositeStatuses(response.statuses);
+    if (response.failed?.length) {
+      showError(response.failed.map((item) => `${item.name}: ${item.error}`).join('\n'));
+    } else {
+      showError('');
+      showSuccess(`Обновлено geosite-баз: ${response.refreshed.length}.`);
+    }
+  } catch (error) {
+    showError(errorMessage(error));
+    await loadGeositeStatuses();
+  }
+});
 
 window.addEventListener('pagehide', () => {
   for (const timerId of proxyStatusTimers.values()) {
@@ -556,28 +971,44 @@ exportProfilesButton.addEventListener('click', async () => {
   const includePasswords = confirm('Экспортировать профили вместе с паролями? Нажмите “Отмена”, чтобы экспортировать без паролей.');
   exportProfilesButton.disabled = true;
   try {
-    const exportedProfiles = (await getProfiles()).map((profile) => ({
-      name: profile.name,
-      proxyForHttp: profile.proxyForHttp,
-      proxyForHttps: profile.proxyForHttps,
-      socks: profile.socks,
-      bypassList: profile.bypassList,
-      bypassRussianResources: profile.bypassRussianResources === true,
-      bypassLocalNetworks: profile.bypassLocalNetworks === true,
-      blockList: profile.blockList,
-      username: profile.username,
-      password: includePasswords ? profile.password : '',
-    }));
-    const blob = new Blob([JSON.stringify({ version: 1, profiles: exportedProfiles }, null, 2)], {
+    let passphrase = null;
+    if (includePasswords) {
+      passphrase = prompt('Придумайте пароль для файла экспорта (минимум 8 символов):');
+      if (passphrase === null) return;
+      if (passphrase.length < 8) {
+        throw new Error('Пароль экспорта должен содержать минимум 8 символов.');
+      }
+      const confirmation = prompt('Повторите пароль экспорта:');
+      if (confirmation === null) return;
+      if (confirmation !== passphrase) {
+        throw new Error('Пароли экспорта не совпадают.');
+      }
+    }
+
+    const exportedProfiles = (await getProfiles())
+      .map((profile) => profileForExport(profile, includePasswords));
+    const payload = {
+      format: EXPORT_FORMAT,
+      version: EXPORT_VERSION,
+      profiles: exportedProfiles,
+    };
+    const exportDocument = includePasswords
+      ? await encryptExportPayload(payload, passphrase)
+      : { ...payload, encrypted: false };
+    const blob = new Blob([JSON.stringify(exportDocument, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'proxy-networks-profiles.json';
+    link.download = includePasswords
+      ? 'proxy-networks-profiles.encrypted.json'
+      : 'proxy-networks-profiles.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
-    showSuccess(includePasswords ? 'Профили экспортированы с паролями.' : 'Профили экспортированы без паролей.');
+    showSuccess(includePasswords
+      ? 'Профили экспортированы с паролями в зашифрованном файле.'
+      : 'Профили экспортированы без паролей.');
   } catch (error) {
     showError(errorMessage(error));
   } finally {
@@ -597,10 +1028,13 @@ importProfilesInput.addEventListener('change', async () => {
 
   importProfilesButton.disabled = true;
   try {
-    if (file.size > 1024 * 1024) {
-      throw new Error('Файл импорта не должен превышать 1 МБ.');
+    if (file.size > 4 * 1024 * 1024) {
+      throw new Error('Файл импорта не должен превышать 4 МБ.');
     }
-    const payload = JSON.parse(await file.text());
+    const documentPayload = JSON.parse(await file.text());
+    const payload = documentPayload?.encrypted === true
+      ? await decryptExportPayload(documentPayload)
+      : documentPayload;
     const importedProfiles = Array.isArray(payload?.profiles) ? payload.profiles : null;
     if (!importedProfiles) {
       throw new Error('Файл должен содержать массив profiles.');

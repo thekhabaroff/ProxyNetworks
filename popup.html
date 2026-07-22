@@ -12,13 +12,16 @@
         <div class="brand-lockup">
           <img class="brand-mark" src="images/logo-brand-48.png" width="32" height="32" alt="" />
           <div>
-            <p class="eyebrow">NETWORK PRIVACY</p>
+            <p class="eyebrow">SECURE CONNECTION</p>
             <h1>Proxy Networks</h1>
           </div>
         </div>
-        <button id="settingsButton" class="settings-button" type="button" aria-label="Настройки" title="Настройки">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.9 2h2.2l.5 2.1c.6.2 1.2.4 1.7.7l1.9-1 1.6 1.6-1 1.9c.3.5.5 1.1.7 1.7l2.1.5v2.2l-2.1.5c-.2.6-.4 1.2-.7 1.7l1 1.9-1.6 1.6-1.9-1c-.5.3-1.1.5-1.7.7l-.5 2.1h-2.2l-.5-2.1c-.6-.2-1.2-.4-1.7-.7l-1.9 1-1.6-1.6 1-1.9c-.3-.5-.5-1.1-.7-1.7L3.4 13V10.8l2.1-.5c.2-.6.4-1.2.7-1.7l-1-1.9 1.6-1.6 1.9 1c.5-.3 1.1-.5 1.7-.7L10.9 2Z" /><circle cx="12" cy="12" r="3.1" /></svg>
-        </button>
+        <div class="header-actions">
+          <span id="versionBadge" class="version-badge" title="Версия расширения">v1.0.0</span>
+          <button id="settingsButton" class="settings-button" type="button" aria-label="Настройки" title="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.9 2h2.2l.5 2.1c.6.2 1.2.4 1.7.7l1.9-1 1.6 1.6-1 1.9c.3.5.5 1.1.7 1.7l2.1.5v2.2l-2.1.5c-.2.6-.4 1.2-.7 1.7l1 1.9-1.6 1.6-1.9-1c-.5.3-1.1.5-1.7.7l-.5 2.1h-2.2l-.5-2.1c-.6-.2-1.2-.4-1.7-.7l-1.9 1-1.6-1.6 1-1.9c-.3-.5-.5-1.1-.7-1.7L3.4 13V10.8l2.1-.5c.2-.6.4-1.2.7-1.7l-1-1.9 1.6-1.6 1.9 1c.5-.3 1.1-.5 1.7-.7L10.9 2Z" /><circle cx="12" cy="12" r="3.1" /></svg>
+          </button>
+        </div>
       </header>
 
       <section class="card">
@@ -30,24 +33,46 @@
           </span>
         </label>
 
-        <label class="field">
-          <span>Профиль</span>
-          <select id="profileSelect"></select>
-        </label>
-        <label id="protocolField" class="field">
-          <span>Протокол</span>
-          <select id="protocolSelect">
-            <option value="auto">Авто</option>
-            <option value="http">HTTP</option>
-            <option value="https">HTTPS</option>
-            <option value="socks">SOCKS5</option>
-          </select>
-        </label>
+        <div class="connection-selectors" aria-label="Параметры подключения">
+          <label class="field selector-field profile-selector">
+            <span class="field-heading">
+              <span>Профиль</span>
+              <small>CONFIG</small>
+            </span>
+            <select id="profileSelect" aria-label="Профиль"></select>
+          </label>
+          <label id="protocolField" class="field selector-field protocol-selector">
+            <span class="field-heading">
+              <span>Протокол</span>
+              <small>ROUTE</small>
+            </span>
+            <select id="protocolSelect" aria-label="Протокол">
+              <option value="auto">Автоматический выбор</option>
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+              <option value="socks">SOCKS5</option>
+            </select>
+          </label>
+        </div>
 
         <div class="live-data">
-          <div id="statusLine" class="status hidden" role="status" aria-live="polite"></div>
-          <div id="ipLine" class="ip" role="status" aria-live="polite">Текущий IP: —</div>
-          <div id="pingLine" class="ip hidden" role="status" aria-live="polite">Пинг: —</div>
+          <div id="proxyGeoInfo" class="proxy-geo-info hidden" role="status" aria-live="polite">
+            <div id="proxyGeoLocation" class="proxy-geo-location">Прокси: определяю локацию…</div>
+            <div id="proxyGeoProviderRow" class="proxy-geo-provider-row">
+              <span>Провайдер</span>
+              <span id="proxyGeoProvider" class="proxy-geo-provider"></span>
+            </div>
+          </div>
+          <div class="live-metrics">
+            <div class="metric-row">
+              <span class="metric-label">Текущий IP</span>
+              <strong id="ipLine" class="metric-value" role="status" aria-live="polite">—</strong>
+            </div>
+            <div id="pingLine" class="metric-row hidden">
+              <span class="metric-label">Пинг</span>
+              <strong id="pingValue" class="metric-value ping-value" role="status" aria-live="polite">—</strong>
+            </div>
+          </div>
         </div>
         <ul id="tipsList" class="tips hidden" aria-label="Советы по диагностике"></ul>
         <button id="refreshIpButton" class="refresh-button" type="button">Обновить IP</button>

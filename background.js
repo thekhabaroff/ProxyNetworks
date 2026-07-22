@@ -11,11 +11,13 @@ import {
   setProxyState,
 } from './storage.js';
 import {
+  getGeositeCacheStatus,
   geositeNamesFromProfiles,
   refreshGeositeCaches,
   resolveGeositeDomainList,
 } from './geosite.js';
 import { updateBlockRules } from './blocker.js';
+import { getProfileProxyGeo } from './geo.js';
 import {
   buildSelectedProxyConfig,
   endpointToProxyServer,
@@ -103,11 +105,16 @@ async function getLocalBypassList() {
   }
 }
 
-async function profileWithResolvedBypassList(profile) {
-  if (!profile || !Array.isArray(profile.bypassList)) {
+async function profileWithResolvedRoutingLists(profile) {
+  if (!profile) {
     return profile;
   }
-  const bypassList = await resolveGeositeDomainList(profile.bypassList);
+  const selectedOnly = profile.routingMode === 'selected';
+  const [resolvedBypassList, proxyList] = await Promise.all([
+    selectedOnly ? [] : resolveGeositeDomainList(profile.bypassList ?? []),
+    resolveGeositeDomainList(profile.proxyList ?? []),
+  ]);
+  const bypassList = [...resolvedBypassList];
   if (profile.bypassRussianResources) {
     bypassList.push(...await getRussianBypassList());
   }
@@ -117,6 +124,7 @@ async function profileWithResolvedBypassList(profile) {
   return {
     ...profile,
     bypassList: [...new Set(bypassList)],
+    proxyList: [...new Set(proxyList)],
   };
 }
 
@@ -141,7 +149,10 @@ async function syncContentBlockingRules(profileOverride = undefined, profileEnab
       disableRulesetIds,
     });
   }
-  return updateBlockRules(profileEnabled ? activeProfile?.blockList ?? [] : []);
+  const blockList = profileEnabled && activeProfile?.routingMode !== 'selected'
+    ? activeProfile?.blockList ?? []
+    : [];
+  return updateBlockRules(blockList);
 }
 
 function canonicalProxyHost(host) {
@@ -350,7 +361,7 @@ async function applyProfile(profile, protocol = 'auto') {
     const endpoint = getProfileEndpoint(profile, protocol);
     if (!endpointToProxyServer(endpoint)) resolvedProtocol = 'auto';
   }
-  const resolvedProfile = await profileWithResolvedBypassList(profile);
+  const resolvedProfile = await profileWithResolvedRoutingLists(profile);
   const config = buildSelectedProxyConfig(resolvedProfile, resolvedProtocol);
   if (config.mode === 'direct') {
     throw new Error('В профиле не настроен ни один прокси.');
@@ -471,6 +482,8 @@ async function getStatus() {
     activeProfileName: activeProfile?.name ?? null,
     lastError,
     selectedProtocol,
+    routingMode: activeProfile?.routingMode ?? 'all',
+    killSwitch: activeProfile?.killSwitch === true,
   };
 }
 
@@ -701,6 +714,39 @@ async function scheduleGeositeRefresh() {
   });
 }
 
+async function getProfileGeositeStatus(profileId) {
+  const profile = profileId ? await getProfile(profileId) : null;
+  if (!profile) {
+    return { names: [], statuses: [] };
+  }
+  const names = geositeNamesFromProfiles([profile]);
+  return {
+    names,
+    statuses: await getGeositeCacheStatus(names),
+  };
+}
+
+async function refreshProfileGeosites(profileId) {
+  const profile = profileId ? await getProfile(profileId) : null;
+  if (!profile) {
+    throw new Error('Сначала сохраните профиль.');
+  }
+
+  const names = geositeNamesFromProfiles([profile]);
+  const result = await refreshGeositeCaches(names);
+  const state = await getProxyState();
+  if (state.enabled && state.activeProfileId === profileId && result.refreshed.length > 0) {
+    await enableActiveProfile(state.selectedProtocol);
+    await updateActionIcon();
+  } else {
+    await syncContentBlockingRules();
+  }
+  return {
+    ...result,
+    statuses: await getGeositeCacheStatus(names),
+  };
+}
+
 async function handleGeositeAlarm(alarm) {
   if (alarm.name !== 'geosite-daily-refresh') {
     return;
@@ -808,8 +854,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return;
     }
 
+    if (message.action === 'getProxyGeo') {
+      const profileId = message.profileId ?? await getActiveProfileId();
+      const profile = profileId ? await getProfile(profileId) : null;
+      if (!profile) {
+        throw new Error('Выбранный профиль не найден.');
+      }
+      const state = await getProxyState();
+      const protocol = message.protocol
+        ?? (state.activeProfileId === profileId ? state.selectedProtocol : 'auto');
+      sendResponse({
+        ok: true,
+        ...await getProfileProxyGeo(profile, protocol, message.forceRefresh === true),
+      });
+      return;
+    }
+
     if (message.action === 'getWebRtcProtection') {
       sendResponse({ ok: true, ...await getWebRtcProtectionStatus() });
+      return;
+    }
+
+    if (message.action === 'getGeositeStatus') {
+      sendResponse({ ok: true, ...await getProfileGeositeStatus(message.profileId) });
+      return;
+    }
+
+    if (message.action === 'refreshGeosite') {
+      const result = await withProxyOperation(() => refreshProfileGeosites(message.profileId));
+      sendResponse({ ok: true, ...result });
       return;
     }
 

@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
 };
 
 const PROTOCOLS = new Set(['auto', 'http', 'https', 'socks']);
+const ROUTING_MODES = new Set(['all', 'selected']);
 const STATE_LOCK_NAME = 'state';
 const CRYPTO_KEY_LOCK_NAME = 'crypto-key';
 const fallbackLockQueues = new Map();
@@ -140,10 +141,15 @@ export function normalizeProfile(profile) {
     proxyForHttp: advancedEndpoints.proxyForHttp,
     proxyForHttps: advancedEndpoints.proxyForHttps,
     socks: advancedEndpoints.socks,
+    routingMode: ROUTING_MODES.has(source.routingMode) ? source.routingMode : 'all',
+    proxyList: normalizeStringList(source.proxyList),
+    killSwitch: source.killSwitch === true,
     bypassList: normalizeStringList(source.bypassList),
     bypassRussianResources: source.bypassRussianResources === true,
     bypassLocalNetworks: source.bypassLocalNetworks === true,
     blockList: normalizeStringList(source.blockList),
+    note: typeof source.note === 'string' ? source.note.trim() : '',
+    tags: normalizeStringList(source.tags),
     username: typeof source.username === 'string' ? source.username.trim() : '',
     password: typeof source.password === 'string' ? source.password : '',
   };
@@ -450,6 +456,17 @@ export async function initializeDefaults() {
       if (!(key in data)) {
         updates[key] = defaults[key];
       }
+    }
+
+    const storedProfiles = Array.isArray(data[STORAGE_KEYS.profiles]) ? data[STORAGE_KEYS.profiles] : [];
+    if (storedProfiles.some((profile) => profile && typeof profile === 'object' && Object.hasOwn(profile, 'color'))) {
+      updates[STORAGE_KEYS.profiles] = storedProfiles.map((profile) => {
+        if (!profile || typeof profile !== 'object') {
+          return profile;
+        }
+        const { color: _removedColor, ...profileWithoutColor } = profile;
+        return profileWithoutColor;
+      });
     }
 
     if (Object.keys(updates).length > 0) {
